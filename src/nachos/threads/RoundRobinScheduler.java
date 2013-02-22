@@ -80,5 +80,10 @@ public class RoundRobinScheduler extends Scheduler {
 	}
 
 	private LinkedList<KThread> waitQueue = new LinkedList<KThread>();
+
+	@Override
+	public boolean contains(KThread thread2) {
+		return waitQueue.contains(thread2);
+	}
     }
 }

@@ -2,6 +2,8 @@ package nachos.threads;
 
 import nachos.machine.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.TreeSet;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -128,6 +130,7 @@ public class PriorityScheduler extends Scheduler {
     protected class PriorityQueue extends ThreadQueue {
 	PriorityQueue(boolean transferPriority) {
 	    this.transferPriority = transferPriority;
+	    this.pq = new java.util.PriorityQueue<ThreadState>();
 	}
 
 	public void waitForAccess(KThread thread) {
@@ -142,8 +145,8 @@ public class PriorityScheduler extends Scheduler {
 
 	public KThread nextThread() {
 	    Lib.assertTrue(Machine.interrupt().disabled());
-	    // implement me
-	    return null;
+	    ThreadState tmp = this.pq.poll();
+	    return tmp != null ? tmp.thread : null;
 	}
 
 	/**
@@ -154,13 +157,12 @@ public class PriorityScheduler extends Scheduler {
 	 *		return.
 	 */
 	protected ThreadState pickNextThread() {
-	    // implement me
-	    return null;
+	    return this.pq.peek();
 	}
 	
 	public void print() {
 	    Lib.assertTrue(Machine.interrupt().disabled());
-	    // implement me (if you want)
+	    System.out.println(pq.toString());
 	}
 
 	/**
@@ -168,6 +170,30 @@ public class PriorityScheduler extends Scheduler {
 	 * threads to the owning thread.
 	 */
 	public boolean transferPriority;
+
+	public int max() {
+		return this.pickNextThread().getEffectivePriority();
+	}
+
+	public void invalidate() {
+		// Nothing for now
+	}
+
+	public void acquired(ThreadState threadState) {
+		this.acquired = threadState;
+	}
+
+	public void enqueue(ThreadState threadState) {
+		this.pq.add(threadState);
+	}
+	
+	private java.util.PriorityQueue<ThreadState> pq;
+	private ThreadState acquired;
+
+	@Override
+	public boolean contains(KThread thread2) {
+		return pq.contains(getThreadState(thread2));
+	}
     }
 
     /**
@@ -177,7 +203,8 @@ public class PriorityScheduler extends Scheduler {
      *
      * @see	nachos.threads.KThread#schedulingState
      */
-    protected class ThreadState {
+    public class ThreadState implements Comparable<ThreadState> {
+    	
 	/**
 	 * Allocate a new <tt>ThreadState</tt> object and associate it with the
 	 * specified thread.
@@ -186,6 +213,8 @@ public class PriorityScheduler extends Scheduler {
 	 */
 	public ThreadState(KThread thread) {
 	    this.thread = thread;
+	    
+	    this.pqs = new ArrayList<PriorityQueue>();
 	    
 	    setPriority(priorityDefault);
 	}
@@ -205,8 +234,13 @@ public class PriorityScheduler extends Scheduler {
 	 * @return	the effective priority of the associated thread.
 	 */
 	public int getEffectivePriority() {
-	    // implement me
-	    return priority;
+		int max = priority;
+		for (PriorityQueue queue : pqs) {
+			if (queue.max() > max) {
+				max = queue.max();
+			}
+		}
+	    return max;
 	}
 
 	/**
@@ -215,12 +249,15 @@ public class PriorityScheduler extends Scheduler {
 	 * @param	priority	the new priority.
 	 */
 	public void setPriority(int priority) {
-	    if (this.priority == priority)
-		return;
+	    if (this.priority == priority) {
+	    	return;
+	    }
 	    
 	    this.priority = priority;
 	    
-	    // implement me
+	    for (PriorityQueue queue : pqs) {
+	    	queue.invalidate(); // invalidate cache
+	    }
 	}
 
 	/**
@@ -236,7 +273,7 @@ public class PriorityScheduler extends Scheduler {
 	 * @see	nachos.threads.ThreadQueue#waitForAccess
 	 */
 	public void waitForAccess(PriorityQueue waitQueue) {
-	    // implement me
+		waitQueue.enqueue(this);
 	}
 
 	/**
@@ -250,12 +287,25 @@ public class PriorityScheduler extends Scheduler {
 	 * @see	nachos.threads.ThreadQueue#nextThread
 	 */
 	public void acquire(PriorityQueue waitQueue) {
-	    // implement me
+		waitQueue.acquired(this);
 	}	
 
 	/** The thread with which this object is associated. */	   
 	protected KThread thread;
 	/** The priority of the associated thread. */
 	protected int priority;
+	/** The list of priority queues for which I'm holding the 
+	 * resource or waiting for the resource */
+    private List<PriorityQueue> pqs;
+    
+	@Override
+	public int compareTo(ThreadState other) {
+		if (this.getEffectivePriority() > other.getEffectivePriority()) {
+			return 1;
+		} else if (this.getEffectivePriority() == other.getEffectivePriority()) {
+			return 0;
+		}
+		return -1;
+	}
     }
 }

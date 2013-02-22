@@ -95,4 +95,6 @@ public abstract class ThreadQueue {
      * Print out all the threads waiting for access, in no particular order.
      */
     public abstract void print();
+
+	public abstract boolean contains(KThread thread2);
 }
