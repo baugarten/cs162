@@ -433,6 +433,35 @@ public class KThread {
 		private int which;
 	}
 
+	/*Test for join*/
+	private static void joinTest(){
+		KThread joinee = new KThread(new Joinee()).setName("Joinee");
+		KThread joiner = new KThread(new Joiner(joinee)).setName("Joiner");
+		
+		joiner.fork();
+		joinee.run();
+	}
+	
+	private static class Joiner implements Runnable {
+		private KThread joinee;
+		
+		Joiner(KThread joiNee){
+			joinee = joiNee;
+		}
+		
+		public void run(){
+			System.out.println("Joiner: before join");
+			joinee.join();
+			System.out.println("Joiner: after join, this should be the last output");
+		}
+	}
+	
+	private static class Joinee implements Runnable {
+		public void run(){
+			System.out.println("Joinee: Happy running");
+		}
+	}
+	
 	/**
 	 * Tests whether this module is working.
 	 */
@@ -441,6 +470,8 @@ public class KThread {
 
 		new KThread(new PingTest(1)).setName("forked thread").fork();
 		new PingTest(0).run();
+		
+		joinTest();
 	}
 
 	private static final char dbgThread = 't';
