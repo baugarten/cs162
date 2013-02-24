@@ -80,6 +80,10 @@ public class Lock {
     public ThreadQueue getWaitQueue() {
     	return this.waitQueue;
     }
+    
+    public KThread getLockHolder() {
+    	return lockHolder;
+    }
 
     private KThread lockHolder = null;
     private ThreadQueue waitQueue =
