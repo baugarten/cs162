@@ -99,6 +99,6 @@ public abstract class ThreadQueue {
     /**
      * Check whether the queue is empty
      */
-    public abstract boolean isEmpty();
+    public abstract boolean empty();
      
 }

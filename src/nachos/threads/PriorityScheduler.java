@@ -166,7 +166,7 @@ public class PriorityScheduler extends Scheduler {
 		/**
 		 * Check whether the queue is empty
 		 */
-		public boolean isEmpty(){
+		public boolean empty(){
 			Lib.assertTrue(Machine.interrupt().disabled());
 			
 			/*FIX ME*/
