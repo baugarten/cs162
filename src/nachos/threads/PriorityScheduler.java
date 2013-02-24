@@ -136,15 +136,29 @@ public class PriorityScheduler extends Scheduler {
 	public void waitForAccess(KThread thread) {
 	    Lib.assertTrue(Machine.interrupt().disabled());
 	    getThreadState(thread).waitForAccess(this);
+	    this.pq.add(getThreadState(thread));
 	}
 
 	public void acquire(KThread thread) {
 	    Lib.assertTrue(Machine.interrupt().disabled());
 	    getThreadState(thread).acquire(this);
+	    if (this.acquired != null) {
+	    	this.acquired.unacquire(this);
+	    }
+	    this.acquired = getThreadState(thread);
+	    this.pq.remove(getThreadState(thread));
 	}
 
 	public KThread nextThread() {
 	    Lib.assertTrue(Machine.interrupt().disabled());
+	    this.print();
+	    System.out.println(this.pickNextThread());
+	    if (this.pq.peek() != null) {
+		    System.out.println(this.pq.peek().getEffectivePriority());
+	    }
+	    if (this.pq.toArray().length > 1 && this.pq.toArray()[1] != null) {
+		    System.out.println(((ThreadState) this.pq.toArray()[1]).getEffectivePriority());
+	    }
 	    ThreadState tmp = this.pq.poll();
 	    return tmp != null ? tmp.thread : null;
 	}
@@ -172,27 +186,34 @@ public class PriorityScheduler extends Scheduler {
 	public boolean transferPriority;
 
 	public int max() {
-		return this.pickNextThread().getEffectivePriority();
+		int max = 0;
+		for (ThreadState st : this.pq) {
+			if (st != null && st != this.acquired) {
+				if (max < st.getEffectivePriority()) {
+					max = st.getEffectivePriority();
+				}
+			} else if (st != null && max < st.getPriority()) {
+				max = st.getPriority();
+			}
+		}
+		return max;
 	}
 
 	public void invalidate() {
 		// Nothing for now
 	}
 
-	public void acquired(ThreadState threadState) {
-		this.acquired = threadState;
-	}
-
-	public void enqueue(ThreadState threadState) {
-		this.pq.add(threadState);
-	}
-	
 	private java.util.PriorityQueue<ThreadState> pq;
 	private ThreadState acquired;
 
 	@Override
 	public boolean contains(KThread thread2) {
 		return pq.contains(getThreadState(thread2));
+	}
+
+	@Override
+	public boolean empty() {
+		return pq.size() == 0;
 	}
     }
 
@@ -273,7 +294,6 @@ public class PriorityScheduler extends Scheduler {
 	 * @see	nachos.threads.ThreadQueue#waitForAccess
 	 */
 	public void waitForAccess(PriorityQueue waitQueue) {
-		waitQueue.enqueue(this);
 	}
 
 	/**
@@ -287,8 +307,12 @@ public class PriorityScheduler extends Scheduler {
 	 * @see	nachos.threads.ThreadQueue#nextThread
 	 */
 	public void acquire(PriorityQueue waitQueue) {
-		waitQueue.acquired(this);
+		this.pqs.add(waitQueue);
 	}	
+	
+	public void unacquire(PriorityQueue noQueue) {
+		this.pqs.remove(noQueue);
+	}
 
 	/** The thread with which this object is associated. */	   
 	protected KThread thread;
@@ -301,11 +325,23 @@ public class PriorityScheduler extends Scheduler {
 	@Override
 	public int compareTo(ThreadState other) {
 		if (this.getEffectivePriority() > other.getEffectivePriority()) {
-			return 1;
+			return -1;
 		} else if (this.getEffectivePriority() == other.getEffectivePriority()) {
 			return 0;
 		}
-		return -1;
+		return 1;
+	}
+	
+	@Override
+	public boolean equals(Object other) {
+		if (other == null) return false;
+		if (!(other instanceof ThreadState)) return false;
+		ThreadState o = (ThreadState) other;
+		return this.thread.compareTo(o.thread) == 0;
+	}
+	
+	public String toString() {
+		return this.thread.toString();
 	}
     }
 }
