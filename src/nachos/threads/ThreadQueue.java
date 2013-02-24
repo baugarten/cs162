@@ -95,4 +95,10 @@ public abstract class ThreadQueue {
      * Print out all the threads waiting for access, in no particular order.
      */
     public abstract void print();
+    
+    /**
+     * Check whether the queue is empty
+     */
+    public abstract boolean isEmpty();
+     
 }
