@@ -85,5 +85,9 @@ public class RoundRobinScheduler extends Scheduler {
 	public boolean contains(KThread thread2) {
 		return waitQueue.contains(thread2);
 	}
+	
+	public boolean empty() {
+		return waitQueue.size() == 0;
+	}
     }
 }

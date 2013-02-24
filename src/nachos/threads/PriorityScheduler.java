@@ -151,14 +151,6 @@ public class PriorityScheduler extends Scheduler {
 
 	public KThread nextThread() {
 	    Lib.assertTrue(Machine.interrupt().disabled());
-	    this.print();
-	    System.out.println(this.pickNextThread());
-	    if (this.pq.peek() != null) {
-		    System.out.println(this.pq.peek().getEffectivePriority());
-	    }
-	    if (this.pq.toArray().length > 1 && this.pq.toArray()[1] != null) {
-		    System.out.println(((ThreadState) this.pq.toArray()[1]).getEffectivePriority());
-	    }
 	    ThreadState tmp = this.pq.poll();
 	    return tmp != null ? tmp.thread : null;
 	}

@@ -97,4 +97,6 @@ public abstract class ThreadQueue {
     public abstract void print();
 
 	public abstract boolean contains(KThread thread2);
+
+	public abstract boolean empty();
 }
