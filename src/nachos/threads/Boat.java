@@ -7,27 +7,27 @@ public class Boat
 {
     static BoatGrader bg;
  
-    static int SURRENDER_WAIT_TIME = 50;
-    static int CHILD_ORIGIN_WAIT_TIME = 5;
+    static int SURRENDER_WAIT_TIME = 	500000;
+    static int CHILD_ORIGIN_WAIT_TIME = 100000;
     
     public static void selfTest()
     {
 	BoatGrader b = new BoatGrader();
 	
-	System.out.println("\n ***Testing Boats with only 2 children***");
-	begin(0, 2, b);
+	//System.out.println("\n ***Testing Boats with only 2 children***");
+	//begin(0, 2, b);
 
-//	System.out.println("\n ***Testing Boats with 2 children, 1 adult***");
-//  	begin(1, 2, b);
+	//System.out.println("\n ***Testing Boats with 2 children, 1 adult***");
+  	//begin(1, 2, b);
 
-//  	System.out.println("\n ***Testing Boats with 3 children, 3 adults***");
-//  	begin(3, 3, b);
+  	System.out.println("\n ***Testing Boats with 3 children, 3 adults***");
+  	begin(3, 3, b);
     }
 
-    static Alarm globalAlarm;
     Lock globalMutex = new Lock();
     Communicator endReporter = new Communicator();
-    
+    int childrenAtDest = 0;	// the number of children at the dest as tracked
+    						// by the people at the origin
     public class Island {
     	Condition waitingPeople;
     	int surrenderCounter = 0;
@@ -38,7 +38,6 @@ public class Boat
     public class ABoat {
     	Island loc;
     	boolean canBoard = true;
-    	boolean flag = false;	// false = odd, true = even
     	int runCounter = 0;
     	int surrenderCounter = 0;
     	
@@ -57,8 +56,8 @@ public class Boat
     		if (person instanceof Adult) {
     			return (pilot==null && passenger==null);
     		} else if (person instanceof Child) {
-    			return pilot==null
-        				|| pilot instanceof Adult;
+    			return !(pilot instanceof Adult)
+        				&& (pilot == null || passenger == null);
     		} else {
     			Lib.assertTrue(false);
     			return false;
@@ -83,27 +82,33 @@ public class Boat
     	
     	// person boards a boat
     	// once ready to depart, isFull returns true
-    	void embark(Person person) {
+    	// returns true if embarked as pilot
+    	boolean embark(Person person) {
     		Lib.assertTrue(person.loc == loc);
     		if (person instanceof Adult) {
     			Lib.assertTrue(pilot==null);
     			Lib.assertTrue(passenger==null);
     			pilot = person;
+    			return true;
     		} else if (person instanceof Child) {
     			if (passenger==null) {
     				passenger = person;
+    				return false;
     			} else if (pilot==null) {
     				pilot = person;
+    				return true;
     			} else {
     				Lib.assertTrue(false);
+    				return false;
     			}
     		} else {
     			Lib.assertTrue(false);
+    			return false;
     		}
     	}
     	
     	// embarks a child as a pilot
-    	void embarkPilot(Person person) {
+    	void embarkAsPilot(Person person) {
     		Lib.assertTrue(person.loc == loc);
     		Lib.assertTrue(pilot==null);
 			pilot = person;
@@ -125,32 +130,46 @@ public class Boat
     public abstract class Person implements Runnable {
     	Island loc;
     	int rememberedSurrenderCounter = 0;
-    	
+
     	public void run() {
     		globalMutex.acquire();
     		while (true) {
     			// probable end condition check
-    			while (loc.surrenderCounter > rememberedSurrenderCounter) {
-    				int island = (loc == destIsland)? 1 : 0;
-    				int comms = rememberedSurrenderCounter * 2 + island;
-    				endReporter.speak(comms);
-    				rememberedSurrenderCounter++;
-    				globalAlarm.waitUntil(SURRENDER_WAIT_TIME);
-    			}
-    			if (theBoat.isOnBoat(this) && loc == originIsland) {
-    				// arrived at origin
-    				boatArriveAtOrigin();
-    			} else if (theBoat.isOnBoat(this) && loc == destIsland) {
-    				// arrived at destination
-    				boatArriveAtDest();
-    			} else if (!theBoat.isOnBoat(this) && loc == originIsland) {
-    				// on origin
-    				originLogic();
-    			} else if (!theBoat.isOnBoat(this) && loc == originIsland) {
-    				// on destination
-    				destLogic();
+    			if (theBoat.isOnBoat(this)) {
+        			if (loc == originIsland) {
+        				// arrived at origin
+        				dbg("arrive origin");    				
+        				boatArriveAtOrigin();
+        			} else if (loc == destIsland) {
+        				// arrived at destination
+        				dbg("arrive dest");
+        				boatArriveAtDest();
+        			} else {
+        				Lib.assertTrue(false);
+        			}
     			} else {
-    				Lib.assertTrue(false);
+    				while (loc.surrenderCounter > rememberedSurrenderCounter) {
+        				int island = (loc == destIsland)? 1 : 0;
+        				int comms = rememberedSurrenderCounter * 2 + island;
+        				endReporter.speak(comms);
+        				dbg("Surrender " + island + " on counter " + rememberedSurrenderCounter);
+        				rememberedSurrenderCounter++;
+        				
+        				globalMutex.release();
+        				ThreadedKernel.alarm.waitUntil(SURRENDER_WAIT_TIME);
+        				globalMutex.acquire();
+    				}
+    				if (loc == originIsland) {
+        				// on origin
+        				dbg("origin logic");
+        				originLogic();
+        			} else if (loc == destIsland) {
+        				// on destination
+        				dbg("dest logic");
+        				destLogic();
+        			} else {
+        				Lib.assertTrue(false);
+        			}
     			}
     		}
     	}
@@ -172,6 +191,10 @@ public class Boat
     			theBoat.passenger.loc = dest;
     		}
     	}
+    	
+    	void dbg(String msg) {
+    		System.out.println(KThread.currentThread().getName() + ": " + msg);
+    	}
     }
 
     public class Adult extends Person {
@@ -181,13 +204,15 @@ public class Boat
     	}
     	void boatArriveAtDest() {
     		bg.AdultRowToMolokai();
+    		dbg("arrived at dest");
+    		
     		theBoat.disembark(this);
     		loc.waitingPeople.wakeAll();
     		loc.waitingPeople.sleep();
     	}
     	
     	void originLogic() {
-    		if (theBoat.flag == true && theBoat.canEmbark(this)) {
+    		if (childrenAtDest > 0 && theBoat.canEmbark(this)) {
     			theBoat.embark(this);
     			row_row_row_the_boat(destIsland);
     			// fall through to next loop
@@ -204,26 +229,49 @@ public class Boat
     	void boatArriveAtOrigin() {
     		Lib.assertTrue(theBoat.isPilot(this));
     		bg.ChildRowToOahu();
+    		dbg("arrived at origin");
+    		
     		theBoat.disembark(this);
+    		childrenAtDest--;
+    		dbg("child origin arrive " + childrenAtDest);
     		loc.waitingPeople.wakeAll();
     		int lastBoatRunCounter = theBoat.runCounter;
-    		globalAlarm.waitUntil(CHILD_ORIGIN_WAIT_TIME);
     		
-    		if (theBoat.runCounter > lastBoatRunCounter) {
-    			if (theBoat.canEmbark(this)) {
-    				if (theBoat.isEmpty()) {
-    					loc.surrenderCounter++;
-    					theBoat.surrenderCounter = loc.surrenderCounter;
-    				}
-    				theBoat.embark(this);
-    				theBoat.canBoard = false;
-    				row_row_row_the_boat(destIsland);
-        			// fall through to next loop
-    			} else {
-    				Lib.assertTrue(false);    				
-    			}
-    		}
-    	}
+    		globalMutex.release();
+	    	ThreadedKernel.alarm.waitUntil(CHILD_ORIGIN_WAIT_TIME);
+	    	globalMutex.acquire();
+	    	
+	    	if (theBoat.runCounter == lastBoatRunCounter) {
+	    		if (theBoat.canEmbark(this)) {
+	    			if (theBoat.isEmpty()) {
+	    				theBoat.embarkAsPilot(this);
+	    				childrenAtDest++;
+	    				
+	    				while (childrenAtDest <= 1) {
+	    					loc.waitingPeople.wakeAll();
+	    					globalMutex.release();
+	    			    	ThreadedKernel.alarm.waitUntil(CHILD_ORIGIN_WAIT_TIME);
+	    			    	globalMutex.acquire();
+	    				}
+	    				
+	    				loc.surrenderCounter++;
+	    				dbg("Raising surrender counter to " + loc.surrenderCounter);
+	    				theBoat.surrenderCounter = loc.surrenderCounter;
+	    				
+	    				row_row_row_the_boat(destIsland);
+		        		// fall through to next loop, run arrival logic
+	    			} else {
+		        		// fall through to next loop, run origin logic and board the boat
+	    			}
+	    		} else {
+	    			// should never have a situation where I can't board the boat
+	    			// and it hasn't left
+	    			Lib.assertTrue(false);
+	    		}
+	    	} else {
+	    		loc.waitingPeople.sleep();
+	    	}
+    	} 
     	
     	void boatArriveAtDest() {
     		if (theBoat.isPassenger(this)) {
@@ -231,6 +279,8 @@ public class Boat
     		} else if (theBoat.isPilot(this)) {
     			bg.ChildRowToMolokai();    			
     		}
+    		dbg("arrived at dest");
+    		
 			theBoat.disembark(this);
 			loc.surrenderCounter = theBoat.surrenderCounter;
 			if (theBoat.isEmpty()) {
@@ -241,15 +291,21 @@ public class Boat
 				// (to check surrender counters)
 			} else {
 				// wake up passenger
+				dbg("passenger wake");
 				theBoat.waitingPassenger.wakeAll();
+				dbg("destination sleep");
 				loc.waitingPeople.sleep();
+				dbg("destination woken");
 			}
     	}
     	
     	void originLogic() {
     		if (theBoat.canEmbark(this)) {
-    			theBoat.embark(this);
-    			if (theBoat.isFull()) {
+    			dbg("origin board");
+    			boolean isPilot = theBoat.embark(this);
+    			childrenAtDest++;
+
+    			if (isPilot) {
     				theBoat.canBoard = false;
     				row_row_row_the_boat(destIsland);
         			// fall through to next loop
@@ -261,9 +317,8 @@ public class Boat
     		}
     	}
     	void destLogic() {
-    		if (theBoat.isEmpty()) {
-    			theBoat.embark(this);
-    			theBoat.flag = !theBoat.flag;
+    		if (theBoat.isEmpty() && theBoat.canEmbark(this)) {
+    			theBoat.embarkAsPilot(this);
     			row_row_row_the_boat(originIsland);
     			// fall through to next loop
     		} else {
@@ -273,6 +328,8 @@ public class Boat
     }
     
     public void instanceBegin( int adults, int children, BoatGrader b ) {	
+    	globalMutex = new Lock();
+    	
     	originIsland = new Island();
     	originIsland.waitingPeople = new Condition(globalMutex);
     	destIsland = new Island();
@@ -288,6 +345,7 @@ public class Boat
     		KThread t = new KThread(thisGuy);
     		t.setName("Adult " + i);
             t.fork();
+            System.out.println("Forked " + t.getName());
     	}
     	for (int i=0;i<children;i++) {
     		Person thisGuy = new Child();
@@ -295,12 +353,14 @@ public class Boat
     		KThread t = new KThread(thisGuy);
     		t.setName("Child " + i);
             t.fork();
+            System.out.println("Forked " + t.getName());
     	}
     	
     	ArrayList<Integer> destReplies = new ArrayList<Integer>();
     	//ArrayList<Boolean> failed = new ArrayList<Boolean>();
     	
     	while (true) {
+    		KThread.yield();
     		int recv = endReporter.listen();
     		int island = recv % 2;
     		int run = recv / 2;
