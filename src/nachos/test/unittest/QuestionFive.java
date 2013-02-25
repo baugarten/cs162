@@ -76,9 +76,13 @@ public class QuestionFive extends TestHarness {
                         checkT1Priority.sleep();
 
                         // Release my locks
-                        wakerupper.release();
                         contention.release();
-                        System.out.println("Thread1 finished");
+                        System.out.println("Thread1 lock released");
+
+                        checkT1Priority.sleep();
+
+                        wakerupper.release();
+
                         KThread.finish();
                     }
                 });
@@ -99,15 +103,10 @@ public class QuestionFive extends TestHarness {
                         Machine.interrupt().disable();
                         contention.getWaitQueue().print();
                         Machine.interrupt().enable();
-                        Assert.assertEquals(
-                                ((ThreadState) thread2.schedulingState)
-                                        .getPriority(),
-                                ((ThreadState) thread1.schedulingState)
-                                        .getEffectivePriority());
-                        Assert.assertTrue(contention.getWaitQueue().contains(
-                                thread2));
-                        Assert.assertFalse(contention.getWaitQueue().contains(
-                                thread1));
+                        Assert.assertEquals(((ThreadState) thread2.schedulingState).getPriority(),
+                                ((ThreadState) thread1.schedulingState).getEffectivePriority());
+                        Assert.assertTrue(contention.getWaitQueue().contains(thread2));
+                        Assert.assertFalse(contention.getWaitQueue().contains(thread1));
 
                         // Wake up T1 again, and then sleep until its released
                         // its lock
@@ -116,14 +115,13 @@ public class QuestionFive extends TestHarness {
                         System.out.println("Checking Priorities 2nd time");
 
                         // Check to make sure priority was undonated
-                        Assert.assertTrue(((ThreadState) thread1.schedulingState)
-                                .getEffectivePriority() == ((ThreadState) thread1.schedulingState)
-                                .getPriority());
-                        Assert.assertFalse(contention.getWaitQueue().contains(
-                                thread2));
-                        Assert.assertFalse(contention.getWaitQueue().contains(
-                                thread1));
-                        checkT1Priority.wake();
+                        Assert.assertEquals(((ThreadState) thread1.schedulingState).getPriority(),
+                                ((ThreadState) thread1.schedulingState).getEffectivePriority());
+
+                        // Niether thread is waiting on contention
+                        Assert.assertFalse(contention.getWaitQueue().contains(thread2));
+                        Assert.assertFalse(contention.getWaitQueue().contains(thread1));
+                        checkT1Priority.wakeAll();
 
                         wakerupper.release();
                         System.out.println("Checker finished");
@@ -156,13 +154,9 @@ public class QuestionFive extends TestHarness {
                 System.out.println("PRIORITY INVERSION");
                 final Lock contention = new Lock();
                 final Lock wakerupper = new Lock();
-                final Condition done = new Condition(contention);
                 final Condition checkLowPriority = new Condition(wakerupper);
-                final Condition waitUntilHigh = new Condition(wakerupper);
                 final Condition waitUntilMed = new Condition(wakerupper);
-                final Condition contentionAcquired = new Condition(wakerupper);
-                final Condition finished = new Condition(wakerupper);
-                final Alarm alarm = new Alarm();
+                final Condition done = new Condition(wakerupper);
                 final KThread medP = new KThread(new Runnable() {
                     public void run() {
                         System.out.println("Med trying to acquire");
@@ -174,6 +168,13 @@ public class QuestionFive extends TestHarness {
                         Random r = new Random();
                         System.out.println("Med has long running task");
                         while (true) {
+                            if (contention.getWaitQueue().empty()) {
+                                System.out.println("Med is finished");
+                                wakerupper.acquire();
+                                done.wake();
+                                wakerupper.release();
+                                KThread.finish();
+                            }
                             r.nextGaussian();
                             r.nextGaussian();
                             r.nextGaussian();
@@ -189,6 +190,7 @@ public class QuestionFive extends TestHarness {
                         contention.acquire(); // Try to acquire lock that L has
                         wakerupper.acquire();
 
+                        System.out.println("H acquired");
                         checkLowPriority.wake();
                         checkLowPriority.sleep();
 
@@ -240,18 +242,20 @@ public class QuestionFive extends TestHarness {
                         // ThreadedKernel.alarm.waitUntil(500);
 
                         // Med is running
-                        System.out
-                                .println("Med should be runing, lets check priorities");
+                        System.out.println("Med should be runing, lets check priorities");
 
                         checkLowPriority.wake();
                         checkLowPriority.sleep();
-
+                        System.out.println("lowP releasing locks");
+                        Machine.interrupt().disable();
                         // Release my locks
                         wakerupper.release();
                         contention.release();
 
                         // lowP is done
+                        System.out.println("lowP is done");
                         KThread.finish();
+                        Machine.interrupt().enable();
                     }
                 });
 
@@ -268,8 +272,7 @@ public class QuestionFive extends TestHarness {
                         Machine.interrupt().disable();
                         contention.getWaitQueue().print();
                         wakerupper.getWaitQueue().print();
-                        System.out
-                                .println("Checking low is ready, high is blocked");
+                        System.out.println("Checking low is ready, high is blocked");
                         Assert.assertTrue(lowP.getStatus() == KThread.statusBlocked); // lowP
                                                                                       // is
                                                                                       // waiting
@@ -277,22 +280,16 @@ public class QuestionFive extends TestHarness {
                                                                                       // threadChecker
                         Assert.assertTrue(highP.getStatus() == KThread.statusBlocked);
 
-                        Assert.assertEquals(
-                                ((ThreadState) highP.schedulingState)
-                                        .getPriority(),
-                                ((ThreadState) lowP.schedulingState)
-                                        .getEffectivePriority());
-                        Assert.assertTrue(contention.getWaitQueue().contains(
-                                highP));
-                        Assert.assertFalse(contention.getWaitQueue().contains(
-                                lowP));
+                        Assert.assertEquals(((ThreadState) highP.schedulingState).getPriority(),
+                                ((ThreadState) lowP.schedulingState).getEffectivePriority());
+                        Assert.assertTrue(contention.getWaitQueue().contains(highP));
+                        Assert.assertFalse(contention.getWaitQueue().contains(lowP));
                         Machine.interrupt().enable();
 
                         checkLowPriority.wake();
                         checkLowPriority.sleep();
 
-                        System.out
-                                .println("Checking low is ready, high is blocked, med ready");
+                        System.out.println("Checking low is ready, high is blocked, med ready");
                         Assert.assertTrue(medP.getStatus() == KThread.statusReady);
                         Assert.assertTrue(lowP.getStatus() == KThread.statusBlocked); // Low
                                                                                       // waiting
@@ -300,21 +297,15 @@ public class QuestionFive extends TestHarness {
                                                                                       // us
                         Assert.assertTrue(highP.getStatus() == KThread.statusBlocked);
 
-                        Assert.assertEquals(
-                                ((ThreadState) highP.schedulingState)
-                                        .getPriority(),
-                                ((ThreadState) lowP.schedulingState)
-                                        .getEffectivePriority());
-                        Assert.assertTrue(contention.getWaitQueue().contains(
-                                highP));
-                        Assert.assertFalse(contention.getWaitQueue().contains(
-                                lowP));
+                        Assert.assertEquals(((ThreadState) highP.schedulingState).getPriority(),
+                                ((ThreadState) lowP.schedulingState).getEffectivePriority());
+                        Assert.assertTrue(contention.getWaitQueue().contains(highP));
+                        Assert.assertFalse(contention.getWaitQueue().contains(lowP));
 
                         checkLowPriority.wake();
                         checkLowPriority.sleep();
 
-                        System.out
-                                .println("Checking low is finished, high is blocked, med ready");
+                        System.out.println("Checking low is finished, high is blocked, med ready");
                         Assert.assertTrue(medP.getStatus() == KThread.statusReady);
                         Assert.assertTrue(lowP.getStatus() == KThread.statusFinished);
                         Assert.assertTrue(highP.getStatus() == KThread.statusBlocked); // High
@@ -322,36 +313,211 @@ public class QuestionFive extends TestHarness {
                                                                                        // for
                                                                                        // us
 
-                        Assert.assertFalse(contention.getWaitQueue().contains(
-                                highP));
-                        Assert.assertFalse(contention.getWaitQueue().contains(
-                                lowP));
+                        Assert.assertFalse(contention.getWaitQueue().contains(highP));
+                        Assert.assertFalse(contention.getWaitQueue().contains(lowP));
 
                         checkLowPriority.wake();
-
-                        try {
-                            Machine.halt();
-                        } catch (Exception e) {
-                            Assert.fail();
-                        }
+                        wakerupper.release();
+                        KThread.finish();
                     }
                 });
                 wakerupper.acquire();
                 contention.acquire();
                 threadChecker.fork();
                 Machine.interrupt().disable();
-                ThreadedKernel.scheduler.setPriority(threadChecker, 7);
+                ThreadedKernel.scheduler.setPriority(threadChecker, 6);
+                ThreadedKernel.scheduler.setPriority(7);
                 Machine.interrupt().enable();
 
                 contention.release();
-                contentionAcquired.sleep();
+                done.sleep();
 
-                contention.acquire();
 
                 System.out.println("Checking all is finished");
-                Assert.assertTrue(medP.getStatus() == KThread.statusReady);
                 Assert.assertTrue(lowP.getStatus() == KThread.statusFinished);
                 Assert.assertTrue(highP.getStatus() == KThread.statusFinished);
+            }
+        });
+        
+        enqueueJob(new Runnable() {
+            public void run() {
+                System.out.println("A -> B -> C");
+                final Lock contention1 = new Lock();
+                final Lock contention2 = new Lock();
+                final Lock wakerupper = new Lock();
+                final Condition checkLowPriority = new Condition(wakerupper);
+                final Condition waitUntilMed = new Condition(wakerupper);
+                final Condition done = new Condition(wakerupper);
+                final Condition contentionAcquired = new Condition(wakerupper);
+                final KThread highP = new KThread(new Runnable() {
+                    public void run() {
+                        System.out.println("High trying to acquire");
+                        contention2.acquire();
+                        
+                        wakerupper.acquire();
+                        
+                        checkLowPriority.wake();
+                        checkLowPriority.sleep();
+                        
+                        done.wake();
+                        wakerupper.release();
+                        contention2.release();
+                        KThread.finish();
+                    }
+                });
+                final KThread medP = new KThread(new Runnable() {
+                    public void run() {
+                        System.out.println("Med trying to acquire");
+                        contention2.acquire();
+                        
+                        contention1.acquire();
+                        wakerupper.acquire();
+                        
+                        // lowP is done
+                        checkLowPriority.wake();
+                        checkLowPriority.sleep();
+                        
+                        wakerupper.release();
+                        
+                        contention1.release();
+                        contention2.release();
+                        KThread.finish();
+                    }
+                });
+                final KThread lowP = new KThread(new Runnable() {
+                    public void run() {
+                        System.out.println("Low trying to acquire");
+                        wakerupper.acquire();
+                        contention1.acquire();
+                        
+                        medP.fork();
+                        Machine.interrupt().disable();
+                        ThreadedKernel.scheduler.setPriority(medP, 4);
+                        Machine.interrupt().enable();
+                        
+                        // Let medP go
+                        while (contention1.getWaitQueue().empty()) {
+                            KThread.yield();
+                        }
+                        
+                        checkLowPriority.wake();
+                        checkLowPriority.sleep();
+                        
+                        highP.fork();
+                        Machine.interrupt().disable();
+                        ThreadedKernel.scheduler.setPriority(highP, 6);
+                        Machine.interrupt().enable();
+                        
+                        while (contention2.getWaitQueue().empty()) {
+                            KThread.yield();
+                        }
+                        
+                        checkLowPriority.wake();
+                        checkLowPriority.sleep();
+                        Machine.interrupt().disable();
+                        contention1.release();
+                        wakerupper.release();
+                        
+                        KThread.finish();
+                        Machine.interrupt().enable();
+                    }
+                });
+                final KThread threadChecker = new KThread(new Runnable() {
+                    public void run() {
+                        System.out.println("Checker starting");
+                        wakerupper.acquire();
+                        lowP.fork();
+                        Machine.interrupt().disable();
+                        ThreadedKernel.scheduler.setPriority(lowP, 2);
+                        Machine.interrupt().enable();
+                        
+                        checkLowPriority.sleep();
+                        System.out.println("Med waiting for Low");
+                        // Low should be blocked on us, Med should have contention 2
+                        // and be waiting on contention 1
+                        Machine.interrupt().disable();
+                        Assert.assertEquals(ThreadedKernel.scheduler.getPriority(medP),
+                                ThreadedKernel.scheduler.getEffectivePriority(lowP));
+                        Machine.interrupt().enable();
+                        Assert.assertTrue(contention1.getWaitQueue().contains(medP));
+                        Assert.assertTrue(contention2.getLockHolder().equals(medP));
+                        Assert.assertTrue(contention1.getLockHolder().equals(lowP));
+                        Assert.assertEquals(KThread.statusBlocked, medP.getStatus());
+                        
+                        checkLowPriority.wake();
+                        checkLowPriority.sleep();
+                        
+                        // Now High should run and request contention2, the resource that
+                        // medP holds
+                        System.out.println("High waiting for Med waiting for Low");
+                        
+                        Machine.interrupt().disable();
+                        Assert.assertEquals(ThreadedKernel.scheduler.getPriority(highP),
+                                ThreadedKernel.scheduler.getEffectivePriority(lowP));
+                        Assert.assertEquals(ThreadedKernel.scheduler.getPriority(highP),
+                                ThreadedKernel.scheduler.getEffectivePriority(medP));
+                        Machine.interrupt().enable();
+                        Assert.assertTrue(contention1.getWaitQueue().contains(medP));
+                        Assert.assertTrue(contention2.getWaitQueue().contains(highP));
+                        Assert.assertTrue(contention2.getLockHolder().equals(medP));
+                        Assert.assertTrue(contention1.getLockHolder().equals(lowP));
+                        Assert.assertEquals(KThread.statusBlocked, medP.getStatus());
+                        Assert.assertEquals(KThread.statusBlocked, highP.getStatus());
+                        
+                        checkLowPriority.wake();
+                        checkLowPriority.sleep();
+                        
+                        // Now lowP should be done, medP has contention1 and 2, high is blocked
+                        System.out.println("High waiting for Med");
+                        Machine.interrupt().disable();
+                        Assert.assertEquals(ThreadedKernel.scheduler.getPriority(highP),
+                                ThreadedKernel.scheduler.getEffectivePriority(medP));
+                        Machine.interrupt().enable();
+                        Assert.assertTrue(contention1.getWaitQueue().empty());
+                        Assert.assertTrue(contention2.getWaitQueue().contains(highP));
+                        Assert.assertTrue(contention2.getLockHolder().equals(medP));
+                        Assert.assertTrue(contention1.getLockHolder().equals(medP));
+                        Assert.assertEquals(KThread.statusBlocked, medP.getStatus());
+                        Assert.assertEquals(KThread.statusBlocked, highP.getStatus());
+                        Assert.assertEquals(KThread.statusFinished, lowP.getStatus());
+                        
+                        checkLowPriority.wake();
+                        checkLowPriority.sleep();
+                        
+                        // LowP, MedP are done. High has contention 2
+                        System.out.println("Low, Med done");
+                        
+                        Assert.assertTrue(contention1.getWaitQueue().empty());
+                        Assert.assertTrue(contention2.getWaitQueue().empty());
+                        Assert.assertTrue(contention2.getLockHolder().equals(highP));
+                        Assert.assertTrue(contention1.getLockHolder() == null);
+                        Assert.assertEquals(KThread.statusFinished, medP.getStatus());
+                        Assert.assertEquals(KThread.statusBlocked, highP.getStatus());
+                        Assert.assertEquals(KThread.statusFinished, lowP.getStatus());
+                        
+                        done.wake();
+                        wakerupper.release();
+                        System.out.println("Checker done");
+                        KThread.finish();
+                    }
+                });
+                wakerupper.acquire();
+                threadChecker.fork();
+                Machine.interrupt().disable();
+                ThreadedKernel.scheduler.setPriority(threadChecker, 7);
+                Machine.interrupt().enable();
+                
+                System.out.println("Sleep on done");
+                done.sleep();
+                System.out.println("All done");
+                
+                wakerupper.release();
+                try {
+                    Machine.halt();
+                } catch (Exception e) {
+                    Assert.fail();
+                }
+
             }
         });
 
