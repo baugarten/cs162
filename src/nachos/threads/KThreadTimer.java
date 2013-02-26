@@ -22,11 +22,11 @@ public class KThreadTimer implements Comparable<KThreadTimer> {
 	public int compareTo(KThreadTimer otherThreadTimer) {
 		// TODO Compare KThreads based on time asleep
 		if (otherThreadTimer.waitTime < this.waitTime) {
-			return -1;		
+			return 1;		
 		} else if (otherThreadTimer.waitTime == this.waitTime) {
 			return 0;
 		} else {
-			return 1;
+			return -1;
 		}
 	}
 

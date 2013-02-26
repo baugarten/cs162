@@ -36,7 +36,7 @@ public class Alarm {
     	
     	Machine.interrupt().disable();
     	
-    	while (sleepingThreads.peek().getWaitTime() <= Machine.timer().getTime()) {
+    	while (sleepingThreads.peek() != null && sleepingThreads.peek().getWaitTime() <= Machine.timer().getTime()) {
     		sleepingThreads.remove().getThread().ready();
     	}
     	
