@@ -84,6 +84,7 @@ public class Condition2 {
     	consumer1.fork();
     	consumer2.fork();
     	producer.fork();
+    	ThreadedKernel.alarm.waitUntil(100000);
     }
     
     private static class Consumer implements Runnable{

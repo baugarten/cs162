@@ -3,6 +3,7 @@ package nachos.test.unittest;
 //import static org.junit.Assert.*;
 
 import nachos.threads.KThread;
+import nachos.threads.ThreadedKernel;
 
 
 //import org.junit.Test;
@@ -47,6 +48,7 @@ public class joinTest{
 		joinerX.fork();
 		joineeZ.fork();
 		joinerY.fork();
+		ThreadedKernel.alarm.waitUntil(100000);
 	}
 
 		/*Case4: super joiner x joins y and z; y and z must finish before x */ 
