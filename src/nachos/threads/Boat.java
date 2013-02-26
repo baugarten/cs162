@@ -7,7 +7,7 @@ public class Boat
 {
     static BoatGrader bg;
  
-    static int SURRENDER_WAIT_TIME = 	500000;
+    static int SURRENDER_WAIT_TIME = 	200000;
     static int CHILD_ORIGIN_WAIT_TIME = 100000;
     
     public static void selfTest()
@@ -20,8 +20,11 @@ public class Boat
 	//System.out.println("\n ***Testing Boats with 2 children, 1 adult***");
   	//begin(1, 2, b);
 
-  	System.out.println("\n ***Testing Boats with 3 children, 3 adults***");
-  	begin(3, 3, b);
+  	//System.out.println("\n ***Testing Boats with 3 children, 3 adults***");
+  	//begin(3, 3, b);
+	
+	//System.out.println("\n ***Testing Boats with 3 children, 3 adults***");
+  	//begin(4, 4, b);
     }
 
     Lock globalMutex = new Lock();
@@ -360,12 +363,12 @@ public class Boat
     	//ArrayList<Boolean> failed = new ArrayList<Boolean>();
     	
     	while (true) {
-    		KThread.yield();
+    		//KThread.yield();
     		int recv = endReporter.listen();
     		int island = recv % 2;
     		int run = recv / 2;
     		
-    		while (destReplies.size() < run) {
+    		while (destReplies.size() < run+1) {
     			destReplies.add(0);
     		}
     		if (island == 1) {
