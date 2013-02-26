@@ -59,8 +59,8 @@ public class KThread {
 		} else {
 			readyQueue = ThreadedKernel.scheduler.newThreadQueue(false);
 			readyQueue.acquire(this);
-			joinLock = new Lock();
-			isFinished = new Condition2(joinLock);
+			
+			isFinished = new Condition(joinLock);
 			joinQueue.acquire(this);
 			currentThread = this;
 			tcb = TCB.currentTCB();
@@ -470,8 +470,8 @@ public class KThread {
 	private Runnable target;
 	private TCB tcb;
 	private ThreadQueue joinQueue = ThreadedKernel.scheduler.newThreadQueue(true);
-    private Condition2 isFinished;
-    private Lock joinLock;
+    private Condition isFinished;
+    private static Lock joinLock = new Lock();
 	
     /**
 	 * Unique identifer for this thread. Used to deterministically compare
