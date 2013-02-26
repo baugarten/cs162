@@ -1,6 +1,9 @@
 package nachos.threads;
 
-import nachos.machine.*;
+import nachos.machine.Lib;
+import nachos.machine.Machine;
+import nachos.machine.TCB;
+import nachos.test.unittest.joinTest;
 
 /**
  * A KThread is a thread that can be used to execute Nachos kernel code. Nachos
@@ -45,11 +48,14 @@ public class KThread {
     public KThread() {
 	if (currentThread != null) {
 	    tcb = new TCB();
+	    isFinished = new Condition2(joinLock);
 	}	    
 	else {
 	    readyQueue = ThreadedKernel.scheduler.newThreadQueue(false);
 	    readyQueue.acquire(this);	    
 
+	    isFinished = new Condition2(joinLock);
+		joinQueue.acquire(this);
 	    currentThread = this;
 	    tcb = TCB.currentTCB();
 	    name = "main";
@@ -195,8 +201,19 @@ public class KThread {
 	Lib.assertTrue(toBeDestroyed == null);
 	toBeDestroyed = currentThread;
 
-
+	joinLock.acquire();
+	KThread thread = currentThread.joinQueue.nextThread();
+	while(thread != null){
+		currentThread.joinQueue.acquire(thread);
+		thread = currentThread.joinQueue.nextThread();
+	}
+	currentThread.isFinished.wakeAll();
+	currentThread.joinQueue = null;
+	joinLock.release();
+	
 	currentThread.status = statusFinished;
+	
+	Machine.interrupt().disable();
 	
 	sleep();
     }
@@ -280,6 +297,18 @@ public class KThread {
 	Lib.debug(dbgThread, "Joining to thread: " + toString());
 
 	Lib.assertTrue(this != currentThread);
+	
+	joinLock.acquire();
+	if(status == statusFinished){
+		joinLock.release();
+	}
+	else{
+		Machine.interrupt().disable();
+		this.joinQueue.waitForAccess(currentThread);
+		Machine.interrupt().enable();
+		isFinished.sleep();
+		joinLock.release();
+	}
 
     }
 
@@ -409,8 +438,13 @@ public class KThread {
 	
 	new KThread(new PingTest(1)).setName("forked thread").fork();
 	new PingTest(0).run();
+	//joinTest();
     }
-
+    
+    private static void joinTest(){
+    	joinTest test = new joinTest();
+    	test.run();
+    }
     private static final char dbgThread = 't';
 
     /**
@@ -432,14 +466,14 @@ public class KThread {
      * on the ready queue and not running).
      */
     private int status = statusNew;
-    public int getStatus() {
-		return status;
-	}
 
 	private String name = "(unnamed thread)";
     private Runnable target;
     private TCB tcb;
-
+    private ThreadQueue joinQueue = ThreadedKernel.scheduler.newThreadQueue(true);
+    private Condition2 isFinished;
+    private static Lock joinLock = new Lock();
+    
     /**
      * Unique identifer for this thread. Used to deterministically compare
      * threads.
