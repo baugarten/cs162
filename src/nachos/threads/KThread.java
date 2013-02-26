@@ -1,6 +1,11 @@
 package nachos.threads;
 
-import nachos.machine.*;
+import nachos.machine.Lib;
+import nachos.machine.Machine;
+import nachos.machine.TCB;
+import nachos.test.unittest.joinTest;
+//import nachos.test.unittest.joinTest.Joinee;
+//import nachos.test.unittest.joinTest.Joiner;
 
 /**
  * A KThread is a thread that can be used to execute Nachos kernel code. Nachos
@@ -56,6 +61,8 @@ public class KThread {
 	public KThread() {
 		if (currentThread != null) {
 			tcb = new TCB();
+			isFinished = new Condition(joinLock);
+			
 		} else {
 			readyQueue = ThreadedKernel.scheduler.newThreadQueue(false);
 			readyQueue.acquire(this);
@@ -208,7 +215,7 @@ public class KThread {
 
 		currentThread.status = statusFinished;
 		
-		currentThread.joinLock.acquire();
+		joinLock.acquire();
 		KThread thread = currentThread.joinQueue.nextThread();
 		while(thread != null){
 			currentThread.joinQueue.acquire(thread);
@@ -216,7 +223,7 @@ public class KThread {
 		}
 		currentThread.isFinished.wakeAll();
 		currentThread.joinQueue = null;
-		currentThread.joinLock.release();
+		joinLock.release();
 
 		sleep();
 	}
@@ -302,10 +309,11 @@ public class KThread {
 		joinLock.acquire();
 		if(status == statusFinished){
 			joinLock.release();
-			return;
 		}
 		else{
+			Machine.interrupt().disable();
 			this.joinQueue.waitForAccess(currentThread);
+			Machine.interrupt().enable();
 			isFinished.sleep();
 			joinLock.release();
 		}
@@ -433,16 +441,19 @@ public class KThread {
 		private int which;
 	}
 	
+	private static void joinTest(){
+		joinTest test = new joinTest();
+		test.run();
+	}
 	
 	/**
 	 * Tests whether this module is working.
 	 */
 	public static void selfTest() {
 		Lib.debug(dbgThread, "Enter KThread.selfTest");
-
 		new KThread(new PingTest(1)).setName("forked thread").fork();
 		new PingTest(0).run();
-		
+		//joinTest();
 	}
 
 	private static final char dbgThread = 't';

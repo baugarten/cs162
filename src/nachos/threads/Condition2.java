@@ -1,7 +1,8 @@
 package nachos.threads;
 
 import nachos.machine.*;
-import nachos.threads.PriorityScheduler.PriorityQueue;
+import nachos.test.unittest.Condition2Test;
+
 
 /**
  * An implementation of condition variables that disables interrupt()s for
@@ -21,8 +22,8 @@ public class Condition2 {
 	 *            thread must hold this lock whenever it uses <tt>sleep()</tt>,
 	 *            <tt>wake()</tt>, or <tt>wakeAll()</tt>.
 	 */
-	public Condition2(Lock conditionLock) {
-		this.conditionLock = conditionLock;
+	public Condition2(Lock conditionLocK) {
+		conditionLock = conditionLocK;
 	}
 
 	/**
@@ -73,7 +74,11 @@ public class Condition2 {
 		Machine.interrupt().enable();
 	}
 
+	public static void selfTest(){
+		new Condition2Test();
+	}
+	
+	
 	private Lock conditionLock;
-	private ThreadQueue waitQueue = ThreadedKernel.scheduler
-			.newThreadQueue(true);
+	private ThreadQueue waitQueue = ThreadedKernel.scheduler.newThreadQueue(true);
 }
