@@ -39,7 +39,7 @@ public class Alarm {
     	while (((KThreadTimer) sleepingThreads.peek()).getWaitTime() <= Machine.timer().getTime()) {
     		((KThreadTimer) sleepingThreads.remove()).getThread().ready();
     	}
-    	
+    
     	KThread.yield();
     	
     	Machine.interrupt().enable();

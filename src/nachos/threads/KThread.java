@@ -420,11 +420,11 @@ public class KThread {
      */
     public Object schedulingState = null;
 
-    private static final int statusNew = 0;
-    private static final int statusReady = 1;
-    private static final int statusRunning = 2;
-    private static final int statusBlocked = 3;
-    private static final int statusFinished = 4;
+    public static final int statusNew = 0;
+    public static final int statusReady = 1;
+    public static final int statusRunning = 2;
+    public static final int statusBlocked = 3;
+    public static final int statusFinished = 4;
 
     /**
      * The status of this thread. A thread can either be new (not yet forked),
@@ -432,7 +432,11 @@ public class KThread {
      * on the ready queue and not running).
      */
     private int status = statusNew;
-    private String name = "(unnamed thread)";
+    public int getStatus() {
+		return status;
+	}
+
+	private String name = "(unnamed thread)";
     private Runnable target;
     private TCB tcb;
 
