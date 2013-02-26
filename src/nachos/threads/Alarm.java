@@ -1,5 +1,7 @@
 package nachos.threads;
 
+import java.util.PriorityQueue;
+
 import nachos.machine.*;
 
 /**
@@ -14,6 +16,10 @@ public class Alarm {
      * <p><b>Note</b>: Nachos will not function correctly with more than one
      * alarm.
      */
+	
+	public PriorityQueue sleepingThreads = new PriorityQueue();
+	
+	
     public Alarm() {
 	Machine.timer().setInterruptHandler(new Runnable() {
 		public void run() { timerInterrupt(); }
@@ -27,7 +33,14 @@ public class Alarm {
      * that should be run.
      */
     public void timerInterrupt() {
-	KThread.currentThread().yield();
+    	
+    	Machine.interrupt().disable();
+    	
+    	while (((KThreadTimer) sleepingThreads.peek()).getWaitTime() <= Machine.timer().getTime()) {
+    		((KThreadTimer) sleepingThreads.remove()).getThread().ready();
+    	}
+    	
+    	Machine.interrupt().enable();
     }
 
     /**
@@ -45,9 +58,16 @@ public class Alarm {
      * @see	nachos.machine.Timer#getTime()
      */
     public void waitUntil(long x) {
-	// for now, cheat just to get something working (busy waiting is bad)
-	long wakeTime = Machine.timer().getTime() + x;
-	while (wakeTime > Machine.timer().getTime())
-	    KThread.yield();
+    	// for now, cheat just to get something working (busy waiting is bad)
+    	long wakeTime = Machine.timer().getTime() + x;
+    	KThreadTimer currentThreadTimer = new KThreadTimer(KThread.currentThread(), wakeTime);
+    	
+    	Machine.interrupt().disable();
+    	
+    	sleepingThreads.add(currentThreadTimer);
+    	KThread.currentThread().sleep();
+    	
+    	Machine.interrupt().enable();
+	
     }
 }
