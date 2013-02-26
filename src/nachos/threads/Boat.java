@@ -7,8 +7,8 @@ public class Boat
 {
     static BoatGrader bg;
  
-    static int SURRENDER_WAIT_TIME = 	200000;
-    static int CHILD_ORIGIN_WAIT_TIME = 100000;
+    static int SURRENDER_WAIT_TIME = 	20000;
+    static int CHILD_ORIGIN_WAIT_TIME = 10000;
     
     public static void selfTest()
     {
@@ -24,7 +24,7 @@ public class Boat
   	//begin(3, 3, b);
 	
 	//System.out.println("\n ***Testing Boats with 3 children, 3 adults***");
-  	//begin(4, 4, b);
+  	begin(4, 4, b);
     }
 
     Lock globalMutex = new Lock();
@@ -151,16 +151,19 @@ public class Boat
         				Lib.assertTrue(false);
         			}
     			} else {
-    				while (loc.surrenderCounter > rememberedSurrenderCounter) {
+    				if (loc.surrenderCounter > rememberedSurrenderCounter) {
+    					rememberedSurrenderCounter = loc.surrenderCounter;
+    					
         				int island = (loc == destIsland)? 1 : 0;
         				int comms = rememberedSurrenderCounter * 2 + island;
         				endReporter.speak(comms);
         				dbg("Surrender " + island + " on counter " + rememberedSurrenderCounter);
-        				rememberedSurrenderCounter++;
         				
-        				globalMutex.release();
-        				ThreadedKernel.alarm.waitUntil(SURRENDER_WAIT_TIME);
-        				globalMutex.acquire();
+        				if (loc == destIsland) {
+	        				globalMutex.release();
+	        				ThreadedKernel.alarm.waitUntil(SURRENDER_WAIT_TIME);
+	        				globalMutex.acquire();
+        				}
     				}
     				if (loc == originIsland) {
         				// on origin
@@ -361,19 +364,24 @@ public class Boat
     	
     	ArrayList<Integer> destReplies = new ArrayList<Integer>();
     	//ArrayList<Boolean> failed = new ArrayList<Boolean>();
-    	
+    	int lastRun = 0;
+    	int counter = 0;
+
     	while (true) {
     		//KThread.yield();
     		int recv = endReporter.listen();
     		int island = recv % 2;
     		int run = recv / 2;
     		
-    		while (destReplies.size() < run+1) {
-    			destReplies.add(0);
+    		if (run > lastRun) {
+    			lastRun = run;
+    			counter = 0;
+    		} else if (run < lastRun) {
+    			continue;
     		}
     		if (island == 1) {
-    			destReplies.set(run, destReplies.get(run)+1);
-    			if (destReplies.get(run) == adults+children) {
+    			counter++;
+    			if (counter == adults+children) {
     				break;
     			}
     		}
