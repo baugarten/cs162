@@ -130,13 +130,13 @@ public class PriorityScheduler extends Scheduler {
     protected class PriorityQueue extends ThreadQueue {
 	PriorityQueue(boolean transferPriority) {
 	    this.transferPriority = transferPriority;
-	    this.pq = new java.util.PriorityQueue<ThreadState>();
+	    this.pq = new java.util.PriorityQueue<ThreadWaiter>();
 	}
 
 	public void waitForAccess(KThread thread) {
 	    Lib.assertTrue(Machine.interrupt().disabled());
 	    getThreadState(thread).waitForAccess(this);
-	    this.pq.add(getThreadState(thread));
+	    this.pq.add(new ThreadWaiter(getThreadState(thread), Machine.timer().getTime()));
 	}
 
 	public void acquire(KThread thread) {
@@ -151,8 +151,8 @@ public class PriorityScheduler extends Scheduler {
 
 	public KThread nextThread() {
 	    Lib.assertTrue(Machine.interrupt().disabled());
-	    ThreadState tmp = this.pq.poll();
-	    return tmp != null ? tmp.thread : null;
+	    ThreadWaiter tmp = this.pq.poll();
+	    return tmp != null ? tmp.state.thread : null;
 	}
 
 	/**
@@ -163,7 +163,7 @@ public class PriorityScheduler extends Scheduler {
 	 *		return.
 	 */
 	protected ThreadState pickNextThread() {
-	    return this.pq.peek();
+	    return this.pq.peek().state;
 	}
 	
 	public void print() {
@@ -179,13 +179,13 @@ public class PriorityScheduler extends Scheduler {
 
 	public int max() {
 		int max = 0;
-		for (ThreadState st : this.pq) {
-			if (st != null && st != this.acquired) {
-				if (max < st.getEffectivePriority()) {
-					max = st.getEffectivePriority();
+		for (ThreadWaiter st : this.pq) {
+			if (st != null && st.state != this.acquired) {
+				if (max < st.state.getEffectivePriority()) {
+					max = st.state.getEffectivePriority();
 				}
-			} else if (st != null && max < st.getPriority()) {
-				max = st.getPriority();
+			} else if (st != null && max < st.state.getPriority()) {
+				max = st.state.getPriority();
 			}
 		}
 		return max;
@@ -195,12 +195,12 @@ public class PriorityScheduler extends Scheduler {
 		// Nothing for now
 	}
 
-	private java.util.PriorityQueue<ThreadState> pq;
+	private java.util.PriorityQueue<ThreadWaiter> pq;
 	private ThreadState acquired;
 
 	@Override
 	public boolean contains(KThread thread2) {
-		return pq.contains(getThreadState(thread2));
+		return pq.contains(new ThreadWaiter(getThreadState(thread2), -1));
 	}
 
 	@Override
@@ -216,7 +216,7 @@ public class PriorityScheduler extends Scheduler {
      *
      * @see	nachos.threads.KThread#schedulingState
      */
-    public class ThreadState implements Comparable<ThreadState> {
+    public class ThreadState {
     	
 	/**
 	 * Allocate a new <tt>ThreadState</tt> object and associate it with the
@@ -314,26 +314,40 @@ public class PriorityScheduler extends Scheduler {
 	 * resource or waiting for the resource */
     private List<PriorityQueue> pqs;
     
-	@Override
-	public int compareTo(ThreadState other) {
-		if (this.getEffectivePriority() > other.getEffectivePriority()) {
-			return -1;
-		} else if (this.getEffectivePriority() == other.getEffectivePriority()) {
-			return 0;
-		}
-		return 1;
-	}
-	
-	@Override
-	public boolean equals(Object other) {
-		if (other == null) return false;
-		if (!(other instanceof ThreadState)) return false;
-		ThreadState o = (ThreadState) other;
-		return this.thread.compareTo(o.thread) == 0;
-	}
-	
-	public String toString() {
-		return this.thread.toString();
-	}
+    }
+    
+    public class ThreadWaiter implements Comparable<ThreadWaiter> {
+        protected ThreadState state;
+        protected long time;
+        public ThreadWaiter(ThreadState state, long time) {
+            this.state = state;
+            this.time = time;
+        }
+        @Override
+        public int compareTo(ThreadWaiter other) {
+            if (this.state.getEffectivePriority() > other.state.getEffectivePriority()) {
+                return -1;
+            } else if (this.state.getEffectivePriority() == other.state.getEffectivePriority()) {
+                if (this.time < other.time) {
+                    return 1;
+                } else if (this.time > other.time) {
+                    return -1;
+                }
+                return 0;
+            }
+            return 1;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other == null) return false;
+            if (!(other instanceof ThreadWaiter)) return false;
+            ThreadWaiter o = (ThreadWaiter) other;
+            return this.state.thread.compareTo(o.state.thread) == 0;
+        }
+
+        public String toString() {
+            return this.state.thread.toString();
+        }
     }
 }

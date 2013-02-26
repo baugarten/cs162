@@ -79,8 +79,6 @@ public class QuestionFive extends TestHarness {
                         contention.release();
                         System.out.println("Thread1 lock released");
 
-                        checkT1Priority.sleep();
-
                         wakerupper.release();
 
                         KThread.finish();
