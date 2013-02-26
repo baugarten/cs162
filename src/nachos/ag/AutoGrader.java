@@ -154,8 +154,8 @@ public class AutoGrader {
 	kernel.terminate();
     }
 
-    Privilege privilege = null;
-    Kernel kernel;
+    protected Privilege privilege = null;
+    protected Kernel kernel;
 
     /**
      * Notify the autograder that the specified thread is the idle thread.
