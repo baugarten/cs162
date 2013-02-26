@@ -33,7 +33,7 @@ public abstract class TestHarness {
 	private static Future<Object> nachosFuture;
 
 	protected static Class<? extends Scheduler> getScheduler() {
-		return RoundRobinScheduler.class;
+		return nachos.threads.PriorityScheduler.class;
 	}
 
 	/**
