@@ -17,7 +17,7 @@ public class Alarm {
      * alarm.
      */
 	
-	public PriorityQueue sleepingThreads = new PriorityQueue();
+	public PriorityQueue<KThreadTimer> sleepingThreads = new PriorityQueue<KThreadTimer>();
 	
 	
     public Alarm() {
@@ -36,11 +36,13 @@ public class Alarm {
     	
     	Machine.interrupt().disable();
     	
-    	while (((KThreadTimer) sleepingThreads.peek()).getWaitTime() <= Machine.timer().getTime()) {
-    		((KThreadTimer) sleepingThreads.remove()).getThread().ready();
+    	while (sleepingThreads.peek().getWaitTime() <= Machine.timer().getTime()) {
+    		sleepingThreads.remove().getThread().ready();
     	}
     	
     	Machine.interrupt().enable();
+
+      KThread.yield();
     }
 
     /**
@@ -65,7 +67,7 @@ public class Alarm {
     	Machine.interrupt().disable();
     	
     	sleepingThreads.add(currentThreadTimer);
-    	KThread.currentThread().sleep();
+    	KThread.sleep();
     	
     	Machine.interrupt().enable();
 	
