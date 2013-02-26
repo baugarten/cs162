@@ -432,9 +432,6 @@ public class KThread {
      * on the ready queue and not running).
      */
     private int status = statusNew;
-    public int getStatus() {
-		return status;
-	}
 
 	private String name = "(unnamed thread)";
     private Runnable target;
