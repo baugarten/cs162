@@ -29,6 +29,10 @@ import java.util.Iterator;
  * particular, priority must be donated through locks, and through joins.
  */
 public class PriorityScheduler extends Scheduler {
+	private static final int INVALIDATED = -1;
+	
+	private static int unique = 0;
+	
     /**
      * Allocate a new priority scheduler.
      */
@@ -128,6 +132,9 @@ public class PriorityScheduler extends Scheduler {
      * A <tt>ThreadQueue</tt> that sorts threads by priority.
      */
     protected class PriorityQueue extends ThreadQueue {
+    	
+    	private int max = INVALIDATED;
+    	
 	PriorityQueue(boolean transferPriority) {
 	    this.transferPriority = transferPriority;
 	    this.pq = new java.util.PriorityQueue<ThreadWaiter>();
@@ -135,24 +142,44 @@ public class PriorityScheduler extends Scheduler {
 
 	public void waitForAccess(KThread thread) {
 	    Lib.assertTrue(Machine.interrupt().disabled());
+	    
+	    Lib.assertTrue(!this.pq.contains(thread));
+	    if (this.acquired != null && this.pq.peek() != null) {
+		    Lib.assertTrue((this.pq.peek().state.thread.id != this.acquired.thread.id));
+	    }
+	    
+	    this.invalidate(getThreadState(thread).getEffectivePriority());
+	    
 	    getThreadState(thread).waitForAccess(this);
-	    this.pq.add(new ThreadWaiter(getThreadState(thread), Machine.timer().getTime()));
+	    this.pq.add(new ThreadWaiter(getThreadState(thread), unique++));
 	}
 
 	public void acquire(KThread thread) {
 	    Lib.assertTrue(Machine.interrupt().disabled());
-	    getThreadState(thread).acquire(this);
+	    Lib.assertTrue(!this.pq.contains(thread));
 	    if (this.acquired != null) {
 	    	this.acquired.unacquire(this);
 	    }
 	    this.acquired = getThreadState(thread);
-	    this.pq.remove(getThreadState(thread));
+	    this.acquired.acquire(this);
+	    //this.invalidate(this.acquired.getEffectivePriority());
+	    //if (this.max <= this.acquired.getEffectivePriority()) {
+	    //	this.invalidate();
+	    //}
+	    this.pq.remove(new ThreadWaiter(getThreadState(thread), -1));
 	}
 
 	public KThread nextThread() {
 	    Lib.assertTrue(Machine.interrupt().disabled());
 	    ThreadWaiter tmp = this.pq.poll();
-	    return tmp != null ? tmp.state.thread : null;
+	    if (tmp != null && tmp.state.getEffectivePriority() >= this.max) {
+	    	this.invalidate();
+	    }
+	    if (tmp != null) { 
+	    	this.acquire(tmp.state.thread);
+	    	return tmp.state.thread;
+	    }
+	    return null;
 	}
 
 	/**
@@ -163,7 +190,8 @@ public class PriorityScheduler extends Scheduler {
 	 *		return.
 	 */
 	protected ThreadState pickNextThread() {
-	    return this.pq.peek().state;
+		ThreadWaiter st = this.pq.peek();
+	    return st != null ? st.state : null;
 	}
 	
 	public void print() {
@@ -178,21 +206,36 @@ public class PriorityScheduler extends Scheduler {
 	public boolean transferPriority;
 
 	public int max() {
-		int max = 0;
-		for (ThreadWaiter st : this.pq) {
-			if (st != null && st.state != this.acquired) {
-				if (max < st.state.getEffectivePriority()) {
-					max = st.state.getEffectivePriority();
+		//if (max == INVALIDATED) {
+			ThreadState next = pickNextThread();
+			if (next == null) return 0;
+			if (next == this.acquired) return this.max = next.getEffectivePriority();
+			return this.max = next.getEffectivePriority();
+			/*for (ThreadWaiter st : this.pq) {
+				if (st != null && st.state != this.acquired) {
+					if (newmax < st.state.getEffectivePriority()) {
+						newmax = st.state.getEffectivePriority();
+					}
+				} else if (st != null && newmax < st.state.getPriority()) {
+					newmax = st.state.getPriority();
 				}
-			} else if (st != null && max < st.state.getPriority()) {
-				max = st.state.getPriority();
 			}
-		}
-		return max;
+			max = newmax;*/
+		//}
+		//return max;
 	}
 
 	public void invalidate() {
-		// Nothing for now
+		invalidate(INVALIDATED);
+	}
+	
+	public void invalidate(int newmax) {
+		if (newmax != INVALIDATED && this.max < newmax) {
+			if (this.acquired != null) {
+				this.acquired.priorityChange(newmax);
+			}
+		}
+		this.max = newmax;
 	}
 
 	private java.util.PriorityQueue<ThreadWaiter> pq;
@@ -206,6 +249,10 @@ public class PriorityScheduler extends Scheduler {
 	@Override
 	public boolean empty() {
 		return pq.size() == 0;
+	}
+
+	public void newMax(int max) {
+		this.invalidate(max);
 	}
     }
 
@@ -225,11 +272,22 @@ public class PriorityScheduler extends Scheduler {
 	 * @param	thread	the thread this state belongs to.
 	 */
 	public ThreadState(KThread thread) {
+		
 	    this.thread = thread;
 	    
-	    this.pqs = new ArrayList<PriorityQueue>();
+	    this.acquiredpqs = new ArrayList<PriorityQueue>();
+	    this.waitingpqs = new ArrayList<PriorityQueue>();
 	    
 	    setPriority(priorityDefault);
+	}
+
+	public void priorityChange(int max) {
+		for (PriorityQueue pq : waitingpqs) {
+			pq.newMax(max);
+		}
+		if (max > effectiveP) {
+			effectiveP = max;
+		}
 	}
 
 	/**
@@ -247,13 +305,16 @@ public class PriorityScheduler extends Scheduler {
 	 * @return	the effective priority of the associated thread.
 	 */
 	public int getEffectivePriority() {
-		int max = priority;
-		for (PriorityQueue queue : pqs) {
-			if (queue.max() > max) {
-				max = queue.max();
+		if (effectiveP == INVALIDATED) {
+			int max = priority;
+			for (PriorityQueue queue : acquiredpqs) {
+				if (queue.max() > max) {
+					max = queue.max();
+				}
 			}
+			effectiveP = max;
 		}
-	    return max;
+	    return effectiveP;
 	}
 
 	/**
@@ -268,7 +329,11 @@ public class PriorityScheduler extends Scheduler {
 	    
 	    this.priority = priority;
 	    
-	    for (PriorityQueue queue : pqs) {
+	    if (this.effectiveP != INVALIDATED && this.priority > this.effectiveP) {
+	    	this.effectiveP = this.priority;
+	    }
+	    
+	    for (PriorityQueue queue : acquiredpqs) {
 	    	queue.invalidate(); // invalidate cache
 	    }
 	}
@@ -286,6 +351,7 @@ public class PriorityScheduler extends Scheduler {
 	 * @see	nachos.threads.ThreadQueue#waitForAccess
 	 */
 	public void waitForAccess(PriorityQueue waitQueue) {
+		waitingpqs.add(waitQueue);
 	}
 
 	/**
@@ -299,12 +365,21 @@ public class PriorityScheduler extends Scheduler {
 	 * @see	nachos.threads.ThreadQueue#nextThread
 	 */
 	public void acquire(PriorityQueue waitQueue) {
-		this.pqs.add(waitQueue);
+		waitingpqs.remove(waitQueue);
+		this.acquiredpqs.add(waitQueue);
+		if (effectiveP != INVALIDATED && waitQueue.max() > this.effectiveP) {
+			this.effectiveP = waitQueue.max();
+		}
 	}	
 	
 	public void unacquire(PriorityQueue noQueue) {
-		this.pqs.remove(noQueue);
+		this.acquiredpqs.remove(noQueue);
+		this.effectiveP = INVALIDATED;
 	}
+	
+	public String toString() {
+        return this.thread.toString();
+    }
 
 	/** The thread with which this object is associated. */	   
 	protected KThread thread;
@@ -312,8 +387,11 @@ public class PriorityScheduler extends Scheduler {
 	protected int priority;
 	/** The list of priority queues for which I'm holding the 
 	 * resource or waiting for the resource */
-    private List<PriorityQueue> pqs;
+    private List<PriorityQueue> acquiredpqs;
     
+    private List<PriorityQueue> waitingpqs;
+    
+    private int effectiveP = INVALIDATED;
     }
     
     public class ThreadWaiter implements Comparable<ThreadWaiter> {
@@ -329,9 +407,9 @@ public class PriorityScheduler extends Scheduler {
                 return -1;
             } else if (this.state.getEffectivePriority() == other.state.getEffectivePriority()) {
                 if (this.time < other.time) {
-                    return 1;
-                } else if (this.time > other.time) {
                     return -1;
+                } else if (this.time > other.time) {
+                    return 1;
                 }
                 return 0;
             }
