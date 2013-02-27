@@ -139,10 +139,11 @@ public class PriorityScheduler extends Scheduler {
 
 	public void waitForAccess(KThread thread) {
 	    Lib.assertTrue(Machine.interrupt().disabled());
-	    if (getThreadState(thread).getEffectivePriority() > this.max) {
-	    	this.invalidate();
+	    int effectivePriority = getThreadState(thread).getEffectivePriority();
+	    if (effectivePriority > this.max) {
+	    	this.max = effectivePriority;
 	    	if (this.acquired != null) {
-		    	this.acquired.priorityChange();
+		    	this.acquired.priorityChange(this.max);
 	    	}
 	    }
 	    getThreadState(thread).waitForAccess(this);
@@ -179,7 +180,8 @@ public class PriorityScheduler extends Scheduler {
 	 *		return.
 	 */
 	protected ThreadState pickNextThread() {
-	    return this.pq.peek().state;
+		ThreadWaiter st = this.pq.peek();
+	    return st != null ? st.state : null;
 	}
 	
 	public void print() {
@@ -195,8 +197,11 @@ public class PriorityScheduler extends Scheduler {
 
 	public int max() {
 		if (max == INVALIDATED) {
-			int newmax = 0;
-			for (ThreadWaiter st : this.pq) {
+			ThreadState next = pickNextThread();
+			if (next == null) return 0;
+			if (next == this.acquired) return this.max = next.getEffectivePriority();
+			return this.max = next.getEffectivePriority();
+			/*for (ThreadWaiter st : this.pq) {
 				if (st != null && st.state != this.acquired) {
 					if (newmax < st.state.getEffectivePriority()) {
 						newmax = st.state.getEffectivePriority();
@@ -205,7 +210,7 @@ public class PriorityScheduler extends Scheduler {
 					newmax = st.state.getPriority();
 				}
 			}
-			max = newmax;
+			max = newmax;*/
 		}
 		return max;
 	}
@@ -226,6 +231,12 @@ public class PriorityScheduler extends Scheduler {
 	@Override
 	public boolean empty() {
 		return pq.size() == 0;
+	}
+
+	public void newMax(int max) {
+		if (max > this.max) {
+			this.max = max;
+		}
 	}
     }
 
@@ -253,9 +264,9 @@ public class PriorityScheduler extends Scheduler {
 	    setPriority(priorityDefault);
 	}
 
-	public void priorityChange() {
+	public void priorityChange(int max) {
 		for (PriorityQueue pq : waitingpqs) {
-			pq.invalidate();
+			pq.newMax(max);
 		}
 	}
 
