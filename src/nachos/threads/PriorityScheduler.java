@@ -323,6 +323,7 @@ public class PriorityScheduler extends Scheduler {
 	    for (PriorityQueue queue : waitingpqs) {
 	    	queue.pq.remove(new ThreadWaiter(this, -1));
 	    	queue.pq.add(new ThreadWaiter(this, unique++));
+	    	queue.invalidate();
 	    }
 	}
 
