@@ -29,6 +29,7 @@ import java.util.Iterator;
  * particular, priority must be donated through locks, and through joins.
  */
 public class PriorityScheduler extends Scheduler {
+	private static final int INVALIDATED = -1;
 	
 	private static int unique = 0;
 	
@@ -131,7 +132,6 @@ public class PriorityScheduler extends Scheduler {
      * A <tt>ThreadQueue</tt> that sorts threads by priority.
      */
     protected class PriorityQueue extends ThreadQueue {
-    	private static final int INVALIDATED = -1;
     	
     	private int max = INVALIDATED;
     	
@@ -252,9 +252,7 @@ public class PriorityScheduler extends Scheduler {
 	}
 
 	public void newMax(int max) {
-		if (max > this.max) {
-			this.max = max;
-		}
+		this.invalidate(max);
 	}
     }
 
@@ -287,6 +285,9 @@ public class PriorityScheduler extends Scheduler {
 		for (PriorityQueue pq : waitingpqs) {
 			pq.newMax(max);
 		}
+		if (max > effectiveP) {
+			effectiveP = max;
+		}
 	}
 
 	/**
@@ -304,13 +305,16 @@ public class PriorityScheduler extends Scheduler {
 	 * @return	the effective priority of the associated thread.
 	 */
 	public int getEffectivePriority() {
-		int max = priority;
-		for (PriorityQueue queue : acquiredpqs) {
-			if (queue.max() > max) {
-				max = queue.max();
+		if (effectiveP == INVALIDATED) {
+			int max = priority;
+			for (PriorityQueue queue : acquiredpqs) {
+				if (queue.max() > max) {
+					max = queue.max();
+				}
 			}
+			effectiveP = max;
 		}
-	    return max;
+	    return effectiveP;
 	}
 
 	/**
@@ -324,6 +328,10 @@ public class PriorityScheduler extends Scheduler {
 	    }
 	    
 	    this.priority = priority;
+	    
+	    if (this.effectiveP != INVALIDATED && this.priority > this.effectiveP) {
+	    	this.effectiveP = this.priority;
+	    }
 	    
 	    for (PriorityQueue queue : acquiredpqs) {
 	    	queue.invalidate(); // invalidate cache
@@ -359,10 +367,14 @@ public class PriorityScheduler extends Scheduler {
 	public void acquire(PriorityQueue waitQueue) {
 		waitingpqs.remove(waitQueue);
 		this.acquiredpqs.add(waitQueue);
+		if (effectiveP != INVALIDATED && waitQueue.max() > this.effectiveP) {
+			this.effectiveP = waitQueue.max();
+		}
 	}	
 	
 	public void unacquire(PriorityQueue noQueue) {
 		this.acquiredpqs.remove(noQueue);
+		this.effectiveP = INVALIDATED;
 	}
 	
 	public String toString() {
@@ -379,6 +391,7 @@ public class PriorityScheduler extends Scheduler {
     
     private List<PriorityQueue> waitingpqs;
     
+    private int effectiveP = INVALIDATED;
     }
     
     public class ThreadWaiter implements Comparable<ThreadWaiter> {
