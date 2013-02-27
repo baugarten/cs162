@@ -29,6 +29,9 @@ import java.util.Iterator;
  * particular, priority must be donated through locks, and through joins.
  */
 public class PriorityScheduler extends Scheduler {
+	
+	private static int unique = 0;
+	
     /**
      * Allocate a new priority scheduler.
      */
@@ -139,28 +142,31 @@ public class PriorityScheduler extends Scheduler {
 
 	public void waitForAccess(KThread thread) {
 	    Lib.assertTrue(Machine.interrupt().disabled());
-	    int effectivePriority = getThreadState(thread).getEffectivePriority();
-	    if (effectivePriority > this.max) {
-	    	this.max = effectivePriority;
-	    	if (this.acquired != null) {
-		    	this.acquired.priorityChange(this.max);
-	    	}
+	    
+	    Lib.assertTrue(!this.pq.contains(thread));
+	    if (this.acquired != null && this.pq.peek() != null) {
+		    Lib.assertTrue((this.pq.peek().state.thread.id != this.acquired.thread.id));
 	    }
+	    
+	    this.invalidate(getThreadState(thread).getEffectivePriority());
+	    
 	    getThreadState(thread).waitForAccess(this);
-	    this.pq.add(new ThreadWaiter(getThreadState(thread), Machine.timer().getTime()));
+	    this.pq.add(new ThreadWaiter(getThreadState(thread), unique++));
 	}
 
 	public void acquire(KThread thread) {
 	    Lib.assertTrue(Machine.interrupt().disabled());
-	    getThreadState(thread).acquire(this);
+	    Lib.assertTrue(!this.pq.contains(thread));
 	    if (this.acquired != null) {
 	    	this.acquired.unacquire(this);
 	    }
 	    this.acquired = getThreadState(thread);
-	    if (this.max <= getThreadState(thread).getEffectivePriority()) {
-	    	this.invalidate();
-	    }
-	    this.pq.remove(getThreadState(thread));
+	    this.acquired.acquire(this);
+	    //this.invalidate(this.acquired.getEffectivePriority());
+	    //if (this.max <= this.acquired.getEffectivePriority()) {
+	    //	this.invalidate();
+	    //}
+	    this.pq.remove(new ThreadWaiter(getThreadState(thread), -1));
 	}
 
 	public KThread nextThread() {
@@ -169,7 +175,11 @@ public class PriorityScheduler extends Scheduler {
 	    if (tmp != null && tmp.state.getEffectivePriority() >= this.max) {
 	    	this.invalidate();
 	    }
-	    return tmp != null ? tmp.state.thread : null;
+	    if (tmp != null) { 
+	    	this.acquire(tmp.state.thread);
+	    	return tmp.state.thread;
+	    }
+	    return null;
 	}
 
 	/**
@@ -196,7 +206,7 @@ public class PriorityScheduler extends Scheduler {
 	public boolean transferPriority;
 
 	public int max() {
-		if (max == INVALIDATED) {
+		//if (max == INVALIDATED) {
 			ThreadState next = pickNextThread();
 			if (next == null) return 0;
 			if (next == this.acquired) return this.max = next.getEffectivePriority();
@@ -211,13 +221,21 @@ public class PriorityScheduler extends Scheduler {
 				}
 			}
 			max = newmax;*/
-		}
-		return max;
+		//}
+		//return max;
 	}
 
 	public void invalidate() {
-		this.max = INVALIDATED;
-		// Nothing for now
+		invalidate(INVALIDATED);
+	}
+	
+	public void invalidate(int newmax) {
+		if (newmax != INVALIDATED && this.max < newmax) {
+			if (this.acquired != null) {
+				this.acquired.priorityChange(newmax);
+			}
+		}
+		this.max = newmax;
 	}
 
 	private java.util.PriorityQueue<ThreadWaiter> pq;
@@ -256,6 +274,7 @@ public class PriorityScheduler extends Scheduler {
 	 * @param	thread	the thread this state belongs to.
 	 */
 	public ThreadState(KThread thread) {
+		
 	    this.thread = thread;
 	    
 	    this.acquiredpqs = new ArrayList<PriorityQueue>();
@@ -345,6 +364,10 @@ public class PriorityScheduler extends Scheduler {
 	public void unacquire(PriorityQueue noQueue) {
 		this.acquiredpqs.remove(noQueue);
 	}
+	
+	public String toString() {
+        return this.thread.toString();
+    }
 
 	/** The thread with which this object is associated. */	   
 	protected KThread thread;
@@ -371,9 +394,9 @@ public class PriorityScheduler extends Scheduler {
                 return -1;
             } else if (this.state.getEffectivePriority() == other.state.getEffectivePriority()) {
                 if (this.time < other.time) {
-                    return 1;
-                } else if (this.time > other.time) {
                     return -1;
+                } else if (this.time > other.time) {
+                    return 1;
                 }
                 return 0;
             }

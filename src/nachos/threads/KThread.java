@@ -440,7 +440,7 @@ public class KThread {
      * Unique identifer for this thread. Used to deterministically compare
      * threads.
      */
-    private int id = numCreated++;
+    int id = numCreated++;
     /** Number of times the KThread constructor was called. */
     private static int numCreated = 0;
 
