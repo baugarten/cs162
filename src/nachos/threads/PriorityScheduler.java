@@ -162,10 +162,7 @@ public class PriorityScheduler extends Scheduler {
 	    }
 	    this.acquired = getThreadState(thread);
 	    this.acquired.acquire(this);
-	    //this.invalidate(this.acquired.getEffectivePriority());
-	    //if (this.max <= this.acquired.getEffectivePriority()) {
-	    //	this.invalidate();
-	    //}
+	    
 	    this.pq.remove(new ThreadWaiter(getThreadState(thread), -1));
 	}
 
@@ -206,23 +203,10 @@ public class PriorityScheduler extends Scheduler {
 	public boolean transferPriority;
 
 	public int max() {
-		//if (max == INVALIDATED) {
-			ThreadState next = pickNextThread();
-			if (next == null) return 0;
-			if (next == this.acquired) return this.max = next.getEffectivePriority();
-			return this.max = next.getEffectivePriority();
-			/*for (ThreadWaiter st : this.pq) {
-				if (st != null && st.state != this.acquired) {
-					if (newmax < st.state.getEffectivePriority()) {
-						newmax = st.state.getEffectivePriority();
-					}
-				} else if (st != null && newmax < st.state.getPriority()) {
-					newmax = st.state.getPriority();
-				}
-			}
-			max = newmax;*/
-		//}
-		//return max;
+		ThreadState next = pickNextThread();
+		if (next == null) return 0;
+		if (next == this.acquired) return this.max = next.getEffectivePriority();
+		return this.max = next.getEffectivePriority();
 	}
 
 	public void invalidate() {
@@ -333,8 +317,9 @@ public class PriorityScheduler extends Scheduler {
 	    	this.effectiveP = this.priority;
 	    }
 	    
-	    for (PriorityQueue queue : acquiredpqs) {
-	    	queue.invalidate(); // invalidate cache
+	    for (PriorityQueue queue : waitingpqs) {
+	    	queue.pq.remove(new ThreadWaiter(this, -1));
+	    	queue.pq.add(new ThreadWaiter(this, unique++));
 	    }
 	}
 
@@ -369,7 +354,7 @@ public class PriorityScheduler extends Scheduler {
 		this.acquiredpqs.add(waitQueue);
 		if (effectiveP != INVALIDATED && waitQueue.max() > this.effectiveP) {
 			this.effectiveP = waitQueue.max();
-		}
+		} 
 	}	
 	
 	public void unacquire(PriorityQueue noQueue) {
