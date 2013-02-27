@@ -139,6 +139,8 @@ public class PriorityScheduler extends Scheduler {
 		public boolean transferPriority;
 		private int max = 0;
 		
+		private int enqueueOrder = 0;
+		
 		PriorityQueue(boolean transferPriority) {
 			this.transferPriority = transferPriority;
 		}
@@ -206,8 +208,9 @@ public class PriorityScheduler extends Scheduler {
 			Lib.assertTrue(!threadWaiterHash.containsKey(ts));
 			
 			// enqueue thread
+			enqueueOrder++;
 			ThreadWaiter twait = new ThreadWaiter(ts,
-					effectivePriority, Machine.timer().getTime());
+					effectivePriority, enqueueOrder);
 			waitQueue.add(twait);
 			threadWaiterHash.put(ts, twait);
 			
