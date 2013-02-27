@@ -3,6 +3,7 @@ package nachos.threads;
 import nachos.machine.*;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.HashSet;
@@ -30,6 +31,8 @@ import java.util.Iterator;
  */
 public class PriorityScheduler extends Scheduler {
 	private static final int INVALIDATED = -1;
+	
+	private static HashMap<ThreadState, ThreadWaiter> waiters = new HashMap<ThreadState, ThreadWaiter>();
 	
 	private static int unique = 0;
 	
@@ -151,7 +154,9 @@ public class PriorityScheduler extends Scheduler {
 	    this.invalidate(getThreadState(thread).getEffectivePriority());
 	    
 	    getThreadState(thread).waitForAccess(this);
-	    this.pq.add(new ThreadWaiter(getThreadState(thread), unique++));
+	    ThreadWaiter waiter = new ThreadWaiter(getThreadState(thread), unique++);
+	    waiters.put(getThreadState(thread), waiter);
+	    this.pq.add(waiter);
 	}
 
 	public void acquire(KThread thread) {
@@ -162,8 +167,10 @@ public class PriorityScheduler extends Scheduler {
 	    }
 	    this.acquired = getThreadState(thread);
 	    this.acquired.acquire(this);
-	    
-	    this.pq.remove(new ThreadWaiter(getThreadState(thread), -1));
+	   
+	    ThreadWaiter waiter = new ThreadWaiter(getThreadState(thread), -1);
+	    this.pq.remove(waiter);
+	    waiters.remove(waiter);
 	}
 
 	public KThread nextThread() {
@@ -321,8 +328,8 @@ public class PriorityScheduler extends Scheduler {
 	    }
 	    
 	    for (PriorityQueue queue : waitingpqs) {
-	    	queue.pq.remove(new ThreadWaiter(this, -1));
-	    	queue.pq.add(new ThreadWaiter(this, unique++));
+	    	queue.pq.remove(waiters.get(this));
+	    	queue.pq.add(waiters.get(this));
 	    	queue.invalidate();
 	    }
 	}
