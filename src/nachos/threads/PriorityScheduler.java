@@ -345,7 +345,7 @@ public class PriorityScheduler extends Scheduler {
 		}
 
 		void effectivePriorityUpdated() {
-			int newEffectivePriority = getEffectivePriority();
+			int newEffectivePriority = calculateEffectivePriority();
 			//System.out.println("  pri update " + this + " " + newEffectivePriority + "/" + effectivePriority);
 			if (newEffectivePriority != effectivePriority) {
 				effectivePriority = newEffectivePriority;
@@ -376,12 +376,16 @@ public class PriorityScheduler extends Scheduler {
 		 * 
 		 * @return the effective priority of the associated thread.
 		 */
-		public int getEffectivePriority() {
+		public int calculateEffectivePriority() {
 			int max = priority;
 			for (PriorityQueue queue : acquiredpqs) {
 				max = Math.max(max, queue.getMax());
 			}
 			return max;
+		}
+		
+		public int getEffectivePriority() {
+			return effectivePriority;
 		}
 
 		/**
