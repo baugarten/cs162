@@ -272,6 +272,9 @@ public class PriorityScheduler extends Scheduler {
 		if (max > effectiveP) {
 			effectiveP = max;
 		}
+		if (max == effectiveP) {
+			effectiveP = INVALIDATED;
+		}
 	}
 
 	/**
