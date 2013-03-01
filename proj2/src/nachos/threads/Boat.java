@@ -7,8 +7,8 @@ public class Boat
 {
     static BoatGrader bg;
  
-    static int SURRENDER_WAIT_TIME = 	20000;
-    static int CHILD_ORIGIN_WAIT_TIME = 10000;
+    static int SURRENDER_WAIT_TIME = 	50000;
+    static int CHILD_ORIGIN_WAIT_TIME = 1000;
     
     public static void selfTest()
     {
@@ -24,9 +24,9 @@ public class Boat
   	//begin(3, 3, b);
 	
 	//System.out.println("\n ***Testing Boats with 3 children, 3 adults***");
-  	begin(4, 4, b);
+  	begin(246, 2, b);
     }
-
+    
     Lock globalMutex = new Lock();
     Communicator endReporter = new Communicator();
     int childrenAtDest = 0;	// the number of children at the dest as tracked
@@ -38,6 +38,8 @@ public class Boat
     Island originIsland;
     Island destIsland;
     
+    
+    //ArrayList<Person> plist = new ArrayList<Person>();
     public class ABoat {
     	Island loc;
     	boolean canBoard = true;
@@ -347,6 +349,7 @@ public class Boat
     	
     	for (int i=0;i<adults;i++) {
     		Person thisGuy = new Adult();
+    		//plist.add(thisGuy);
     		thisGuy.loc = originIsland;
     		KThread t = new KThread(thisGuy);
     		t.setName("Adult " + i);
@@ -355,6 +358,7 @@ public class Boat
     	}
     	for (int i=0;i<children;i++) {
     		Person thisGuy = new Child();
+    		//plist.add(thisGuy);
     		thisGuy.loc = originIsland;
     		KThread t = new KThread(thisGuy);
     		t.setName("Child " + i);
@@ -386,6 +390,16 @@ public class Boat
     			}
     		}
     	}
+    	/*System.out.println("Final test");
+      	for (Person p : plist) {
+      		if (p.loc != destIsland) {
+      			System.out.println("FAILED************");
+      		} else {
+      		//	System.out.println("       OK");
+      		}
+      				
+        }*/
+
     }
     
     public static void begin( int adults, int children, BoatGrader b )
