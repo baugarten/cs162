@@ -130,11 +130,11 @@ public class PriorityScheduler extends Scheduler {
 	 * A <tt>ThreadQueue</tt> that sorts threads by priority.
 	 */
 	protected class PriorityQueue extends ThreadQueue {
-		HashMap<ThreadState, ThreadWaiter> threadWaiterHash = 	// KThread -> threadWaiter on PQ
+		private HashMap<ThreadState, ThreadWaiter> threadWaiterHash = 	// KThread -> threadWaiter on PQ
 				new HashMap<ThreadState, ThreadWaiter>(); 
-		java.util.PriorityQueue<ThreadWaiter> waitQueue =
+		private java.util.PriorityQueue<ThreadWaiter> waitQueue =
 				new java.util.PriorityQueue<ThreadWaiter>();
-		private ThreadState acquired;
+		protected ThreadState acquired;
 
 		public boolean transferPriority;
 		private int max = 0;
