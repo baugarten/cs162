@@ -5,6 +5,10 @@ import nachos.threads.*;
 import nachos.userprog.*;
 
 import java.io.EOFException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 
 /**
  * Encapsulates the state of a user process that is not contained in its
@@ -27,6 +31,11 @@ public class UserProcess {
 	pageTable = new TranslationEntry[numPhysPages];
 	for (int i=0; i<numPhysPages; i++)
 	    pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
+	
+	openfiles = new HashMap<Integer, OpenFile>();
+	available_descriptors = Arrays.asList(2,3,4,5,6,7,8,9,10,11,12,13,14,15);
+	openfiles.put(0, UserKernel.console.openForWriting());
+	openfiles.put(1, UserKernel.console.openForReading());
     }
     
     /**
@@ -391,8 +400,18 @@ public class UserProcess {
 	switch (syscall) {
 	case syscallHalt:
 	    return handleHalt();
-
-
+	case syscallCreate:
+		return handleCreate(a0);
+	case syscallOpen:
+		return handleOpen(a0);
+	case syscallRead:
+		return handleRead(a0, a1, a2);
+	case syscallWrite:
+		return handleWrite(a0, a1, a2);
+	case syscallClose:
+		return handleClose(a0);
+	case syscallUnlink:
+		return handleUnlink(a0);
 	default:
 	    Lib.debug(dbgProcess, "Unknown syscall " + syscall);
 	    Lib.assertNotReached("Unknown system call!");
@@ -400,7 +419,105 @@ public class UserProcess {
 	return 0;
     }
 
-    /**
+    private int handleUnlink(int a0) {
+    	String filename = this.readVirtualMemoryString(a0, 255);
+		if (filename == null) {
+			return -1;
+		}
+		return ThreadedKernel.fileSystem.remove(filename) ? 0 : -1;
+	}
+
+	private int handleClose(int a0) {
+		OpenFile file = openfiles.get(a0);
+		if (file == null) return -1;
+		file.close();
+		openfiles.remove(a0);
+		available_descriptors.add(a0);
+		return 0;
+	}
+
+	private int handleWrite(int a0, int bufaddr, int count) {
+		OpenFile file = openfiles.get(a0);
+		if (file == null) return -1;
+		byte[] transfer_buffer = new byte[Processor.pageSize];
+		int total_transfer = 0;
+		while (count > 0) {
+			int readlen = Math.min(Processor.pageSize, count);
+			
+			int actualread = readVirtualMemory(bufaddr, transfer_buffer, 0, readlen);
+			if (actualread == -1) return -1;
+			if (actualread < readlen) return -1;
+			
+			int written_bytes = file.write(transfer_buffer, 0, actualread);
+			if (written_bytes != actualread) {
+				return -1;
+			}
+			count -= actualread;
+			bufaddr += actualread;
+			total_transfer += actualread;
+		}
+		return total_transfer;
+	}
+
+	private int handleRead(int a0, int bufaddr, int count) {
+		OpenFile file = openfiles.get(a0);
+		if (file == null) return -1;
+		byte[] transfer_buffer = new byte[Processor.pageSize];
+		boolean done = false;
+		int total_transfer = 0;
+		while (!done && count > 0) {
+			int readlen = Math.min(Processor.pageSize, count);
+			
+			int actualread = file.read(transfer_buffer, 0, readlen);
+			if (actualread == -1) return -1;
+			if (actualread < readlen) done = true;
+			
+			int written_bytes = writeVirtualMemory(bufaddr, transfer_buffer, 0, actualread);
+			if (written_bytes != actualread) {
+				return -1;
+			}
+			count -= actualread;
+			bufaddr += actualread;
+			total_transfer += actualread;
+		}
+		return total_transfer;
+	}
+
+	private int handleOpen(int a0) {
+		String filename = this.readVirtualMemoryString(a0, 255);
+		if (filename == null) {
+			return -1;
+		}
+		OpenFile file = ThreadedKernel.fileSystem.open(filename, false);
+		if (file == null) {
+			return -1;
+		}
+		if (available_descriptors.size() < 1) {
+			return -1;
+		}
+		Integer filedescriptor = available_descriptors.remove(0);
+		openfiles.put(filedescriptor, file);
+		return filedescriptor;
+	}
+
+	private int handleCreate(int a0) {
+		String filename = this.readVirtualMemoryString(a0, 255);
+		if (filename == null) {
+			return -1;
+		}
+		OpenFile file = ThreadedKernel.fileSystem.open(filename, true);
+		if (file == null) {
+			return -1;
+		}
+		if (available_descriptors.size() < 1) {
+			return -1;
+		}
+		Integer filedescriptor = available_descriptors.remove(0);
+		openfiles.put(filedescriptor, file);
+		return filedescriptor;
+	}
+
+	/**
      * Handle a user exception. Called by
      * <tt>UserKernel.exceptionHandler()</tt>. The
      * <i>cause</i> argument identifies which exception occurred; see the
@@ -443,7 +560,10 @@ public class UserProcess {
     
     private int initialPC, initialSP;
     private int argc, argv;
-	
+
+    private HashMap<Integer, OpenFile> openfiles;
+    private List<Integer> available_descriptors;
+    
     private static final int pageSize = Processor.pageSize;
     private static final char dbgProcess = 'a';
 }
