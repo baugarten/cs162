@@ -23,6 +23,10 @@ import java.util.List;
  * @see	nachos.network.NetProcess
  */
 public class UserProcess {
+	private static final int ROOT = 1;
+	private static int unique = ROOT;
+	private int process_id;
+	
     /**
      * Allocate a new process.
      */
@@ -31,6 +35,9 @@ public class UserProcess {
 	pageTable = new TranslationEntry[numPhysPages];
 	for (int i=0; i<numPhysPages; i++)
 	    pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
+	
+	this.process_id = unique;
+	unique++;
 	
 	openfiles = new HashMap<Integer, OpenFile>();
 	available_descriptors = Arrays.asList(2,3,4,5,6,7,8,9,10,11,12,13,14,15);
@@ -348,8 +355,10 @@ public class UserProcess {
      * Handle the halt() system call. 
      */
     private int handleHalt() {
-
-	Machine.halt();
+    if (this.process_id != ROOT) {
+    	return 0;
+    }
+    Machine.halt();
 	
 	Lib.assertNotReached("Machine.halt() did not halt machine!");
 	return 0;
