@@ -375,11 +375,14 @@ public class QuestionFive extends TestHarness {
                         checkLowPriority.wake();
                         checkLowPriority.sleep();
                         
+                        Machine.interrupt().disable();
+                      
                         wakerupper.release();
                         
                         contention1.release();
                         contention2.release();
                         KThread.finish();
+                        Machine.interrupt().enable();
                     }
                 });
                 final KThread lowP = new KThread(new Runnable() {
