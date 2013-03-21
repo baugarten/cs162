@@ -139,9 +139,9 @@ public class LotteryScheduler extends PriorityScheduler {
 			}
 		}
 		
-		Iterator iter = result.keySet().iterator();
+		Iterator<ThreadState> iter = result.keySet().iterator();
 		while(iter.hasNext()){
-			thread = (ThreadState)iter.next();
+			thread = iter.next();
 			System.out.println(thread.thread.getName() + " is picked " + result.get(thread).intValue() + " times");
 		}
 		System.out.println("---------- End Lottery Test---------");
@@ -152,51 +152,34 @@ public class LotteryScheduler extends PriorityScheduler {
 		public static void selfTest(){
 			final int[] a = {1};
 			final Lock lock = new Lock();
+			final Condition2 con_var = new Condition2(lock); 
 			final KThread donor = new KThread(new Runnable (){
 				public void run(){
 					lock.acquire();
-					/*
-					Machine.interrupt().disable();
-					System.out.print("ReadyQueue size when Donor runs = ");
-					System.out.println(ThreadedKernel.scheduler.getEffectivePriority());
-					Machine.interrupt().enable();
-					*/
+					while (a[0] > 0){
+						con_var.sleep();
+					}
+					con_var.wake();
 					System.out.println("Donor finishes.");
-					
-					//a[0] = 0;
 					lock.release();
 				}
 			});
 			final KThread middle = new KThread(new Runnable() {
 				public void run(){
-					
-					while(a[0] == 1){
-						KThread.yield();
-						System.out.println("Middle woken up");
+					lock.acquire();
+					while (a[0] > 0){
+						con_var.sleep();
 					}
-					/*
-					Machine.interrupt().disable();
-					System.out.print("ReadyQueue size when middle runs = ");
-					System.out.println(ThreadedKernel.scheduler.getEffectivePriority());
-					Machine.interrupt().enable();
-					*/
+					con_var.wake();
 					System.out.println("Middle finishes.");
-					
+					lock.release();
 				}
 			});
 			final KThread receiver = new KThread(new Runnable(){
 				public void run(){
 					lock.acquire();
-					donor.fork();
-					middle.fork();
-					KThread.yield();
-					/*
-					Machine.interrupt().disable();
-					System.out.print("ReadyQueue size when receveir runs = ");
-					System.out.println(ThreadedKernel.scheduler.getEffectivePriority());
-					Machine.interrupt().enable();
-					*/
 					a[0] = 0;
+					con_var.wakeAll();
 					System.out.println("Receiver finishes.");
 					lock.release();
 				}
@@ -206,20 +189,14 @@ public class LotteryScheduler extends PriorityScheduler {
 			System.out.println("Expected Receiver to finish first.");
 			
 			Machine.interrupt().disable();
-			ThreadedKernel.scheduler.setPriority(receiver, 2);
-			ThreadedKernel.scheduler.setPriority(donor, 100);
-			ThreadedKernel.scheduler.setPriority(middle, 100);
+			ThreadedKernel.scheduler.setPriority(receiver, 10);
+			ThreadedKernel.scheduler.setPriority(donor, 300);
+			ThreadedKernel.scheduler.setPriority(middle, 1000);
 			Machine.interrupt().enable();
 			receiver.fork();
-			//donor.fork();
-			//middle.fork();
-			/*
-			Machine.interrupt().disable();
-			System.out.print("ReadyQueue size after 3 forks = ");
-			System.out.println(ThreadedKernel.scheduler.getEffectivePriority());
-			Machine.interrupt().enable();
-			*/
-			ThreadedKernel.alarm.waitUntil(10000);
+			donor.fork();
+			middle.fork();
+			ThreadedKernel.alarm.waitUntil(100000);
 			System.out.println("-------- End testing --------");
 		}
 	/**
@@ -248,34 +225,8 @@ public class LotteryScheduler extends PriorityScheduler {
 			this.transferPriority = transferPriority;
 			sum = 0;
 			sumChange = true;
-			starter = true;
+			starter = false;
 			valid = false;
-		}
-		
-		// DONE
-		public void newSum(int newsum, ThreadState ts) {
-			//int oldSum = this.sum;
-			if (newsum < 0){
-				sum = 0;
-			}
-			else {
-				sum = newsum;
-			}
-			
-			if(this.acquired != null){
-				this.acquired.priorityChange(this.sum);
-			}
-			/* For now, no telling the acquired the queue has changed
-			if (this.acquired != null){
-				if(ts == acquired && sum > oldSum) {
-					this.acquired.setEffectivePriority(sum - oldSum);
-					//this.acquired.priorityChange(this.sum);
-				}
-				else{
-				this.acquired.priorityChange(this.sum);
-				}
-			}
-			*/
 		}
 		
 		private void announce(){
@@ -284,15 +235,20 @@ public class LotteryScheduler extends PriorityScheduler {
 		}
 		
 		private void announceSumChange(ThreadState ts){
-			if (this.acquired != null && starter == false){
+			if (ts == acquired){
+				acquired.setEffectivePriority(acquired.getEffectivePriority() - sum);
+				acquired.setValid(true);
+			}
+			else if (this.acquired != null && starter == false){
 				announce();
 				starter = false;
 			}
 		}
 		
-		//DONE
 		public void updateWaitingThread(ThreadState ts) {
-			Lib.assertTrue(waitQueue.containsKey(ts));
+			if (waitQueue.size() == 0) {
+				return;
+			}
 			
 			int effectivePriority = ts.getEffectivePriority();
 			int oldEffectivePrio = waitQueue.get(ts).intValue();
@@ -300,38 +256,26 @@ public class LotteryScheduler extends PriorityScheduler {
 				return;
 			}
 			
-			//ts.setValid();
-			// update the queue
+			// update the value of a threadstate on the queue
 			waitQueue.put(ts,new Integer(effectivePriority));
-			// update the sum of the lottery queue
-			/*
-			if(acquired != ts){
-				newSum(getSum() - oldEffectivePrio + effectivePriority, ts);
-			}
-			*/
-			// flag the queue that its sum has changed
+
+			// flag the queue that its sum has changed and announce to others
 			sumChange = true;
-			
 			announceSumChange(ts);
 				
 		}
 		
-		//DONE
 		public void dequeueWaitingThread(ThreadState ts) {
 			Lib.assertTrue(waitQueue.containsKey(ts));
 			
 			// remove the thread from the lottery queue
 			waitQueue.remove(ts);
 			
-			// update new sum of the lottery queue
-			//newSum(getSum() - ts.getEffectivePriority(), ts);
-			
 			// flag the queue that its sum has changed
 			sumChange = true;
 			announceSumChange(ts);
 		}
 		
-		// DONE
 		public void enqueueWaitingThread(ThreadState ts) {
 			int effectivePriority = ts.getEffectivePriority();
 
@@ -345,24 +289,12 @@ public class LotteryScheduler extends PriorityScheduler {
 			}
 			
 			ts.waitForAccess(this);
-			//ts.isValid();
-			
-			// update sum of lottery queue
-			/*
-			if(acquired != ts){
-				newSum(getSum() + effectivePriority, ts);
-			}
-			else {
-				newSum(effectivePriority, ts);
-			}
-			*/
 			
 			// flag the queue that its sum has changed
 			sumChange = true;
 			announceSumChange(ts);
 		}
 		
-		// add a thread to the queue - DONE
 		public void waitForAccess(KThread thread) {
 			Lib.assertTrue(Machine.interrupt().disabled());
 			ThreadState ts = getThreadState(thread);
@@ -390,17 +322,11 @@ public class LotteryScheduler extends PriorityScheduler {
 			ts.acquire(this);
 
 		}
-		
-		public int size(){
-			return waitQueue.size();
-		}
-		
-		// DONE
+				
 		public KThread nextThread() {
 			Lib.assertTrue(Machine.interrupt().disabled());
 
 			ThreadState ts = pickNextThread();
-			
 			if (ts == null) {
 				if (acquired != null) {
 					acquired.unacquire(this);
@@ -408,11 +334,10 @@ public class LotteryScheduler extends PriorityScheduler {
 				return null;
 			}
 			acquire(ts.thread);
-			
 			return ts.thread;
 		}
 		
-		// hold a lottery - DONE
+		// Hold a lottery when picks a new thread
 		protected ThreadState pickNextThread() {
 			int total = 0;
 			int num;
@@ -422,11 +347,11 @@ public class LotteryScheduler extends PriorityScheduler {
 				return null;
 			}
 			
-			if (sumChange){
+			if (sumChange == true && valid == true){
 				updateSum();
 			}
 			
-			num = rand.nextInt(sum) + 1;
+			num = rand.nextInt(getSum()) + 1;
 			Iterator<ThreadState> iter = waitQueue.keySet().iterator();
 			while(num > total && iter.hasNext()){
 				result = iter.next();
@@ -435,9 +360,8 @@ public class LotteryScheduler extends PriorityScheduler {
 			return result;
 		}
     	
-		// DONE
 		public int getSum(){
-			if (sumChange == false){
+			if (valid == true && sumChange == false){
 				return sum;
 			} else {
 				updateSum();
@@ -445,7 +369,6 @@ public class LotteryScheduler extends PriorityScheduler {
 			}
 		}
 		
-		// DONE
 		private void updateSum(){
 			Lib.assertTrue(sumChange == true);
 			int total = 0;
@@ -482,6 +405,10 @@ public class LotteryScheduler extends PriorityScheduler {
 		public boolean isValid(){
 			return !sumChange;
 		}
+		
+		public int size(){
+			return waitQueue.size();
+		}
     }
     
     public class ThreadState extends PriorityScheduler.ThreadState{
@@ -490,10 +417,9 @@ public class LotteryScheduler extends PriorityScheduler {
 		public ThreadState(KThread thread){
     		super(thread);
     		updatedEffectivePrio = true;
-    		starter = true;
+    		starter = false;
     	}
     	
-		// DONE
 		public int getEffectivePriority(){
 			if(!updatedEffectivePrio){
 				return calculateEffectivePriority();
@@ -503,7 +429,7 @@ public class LotteryScheduler extends PriorityScheduler {
 			}
 		}
 		
-		// DONE
+		// Used by a queue to tell the acquired thread to update its effective priority
 		public void priorityChange(int newPri) {
 			updatedEffectivePrio = false;
 			if(!starter){
@@ -513,15 +439,16 @@ public class LotteryScheduler extends PriorityScheduler {
 		}
 		
 		public void setEffectivePriority(int value){
-			Lib.assertTrue(this.priority >= value);
+			if (value < this.priority){
+				this.effectivePriority = this.priority;
+			} else { 
+				this.effectivePriority = value;
+			}
 			this.effectivePriority = value;
-			announcePrioChange();
+			priorityChange(0);
 		}
 		
-		// DONE
     	public int calculateEffectivePriority() {
-    		
-    			//starter = true;
     			int sum = priority;
     			int queueSum = 0;
     			Iterator<ThreadQueue> iter = acquiredpqs.iterator();
@@ -538,9 +465,7 @@ public class LotteryScheduler extends PriorityScheduler {
 			return sum;
 		}
     	
-    	// DONE
-    	void effectivePriorityUpdated() {
-    		
+    	void effectivePriorityUpdated() { 		
 			int newEffectivePriority = calculateEffectivePriority();
 			if (newEffectivePriority != effectivePriority) {
 				effectivePriority = newEffectivePriority;
@@ -549,12 +474,25 @@ public class LotteryScheduler extends PriorityScheduler {
 			}
 		}
     	
-    	// DONE
+    	// Mark the waitQueue the queue that this thread is waiting on
     	public void waitForAccess(ThreadQueue waitQueue) {
 			waitingpqs.add(waitQueue);
 		}
     	
-    	//DONE
+    	// Thread acquires a queue
+    	public void acquire(ThreadQueue waitQueue) {
+			waitingpqs.remove(waitQueue);
+			acquiredpqs.add(waitQueue);
+			effectivePriorityUpdated();
+		}
+    	
+    	// Unacquire the thread from the queue
+    	public void unacquire(ThreadQueue noQueue) {
+			acquiredpqs.remove(noQueue);
+			effectivePriorityUpdated();
+		}
+
+    	// Announce that the thread's effective priority has been changed by asking the queue to update
     	void announcePrioChange(){
     		starter = true;
     		LotteryQueue queue;
@@ -567,21 +505,14 @@ public class LotteryScheduler extends PriorityScheduler {
 			starter = false;
     	}
     	
-    	// DONE
-    	public void acquire(ThreadQueue waitQueue) {
-			waitingpqs.remove(waitQueue);
-			acquiredpqs.add(waitQueue);
-			effectivePriorityUpdated();
-		}
-
-    	//DONE
-    	public void unacquire(ThreadQueue noQueue) {
-			acquiredpqs.remove(noQueue);
-			effectivePriorityUpdated();
-		}
-    	
+    	// Check if the effective priority has been changed
     	public boolean isValid(){
     		return updatedEffectivePrio;
+    	}
+    	
+    	// Mark the effective priority is correct
+    	public void setValid(boolean value){
+    		updatedEffectivePrio = value;
     	}
     }
 }
