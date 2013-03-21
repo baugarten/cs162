@@ -3,11 +3,53 @@ package nachos.userprog;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
+import java.util.*;
 
 /**
  * A kernel that can support multiple user processes.
  */
 public class UserKernel extends ThreadedKernel {
+	static boolean pagesInitialized = false;
+	static Lock freePagesMutex;
+	static LinkedList<Integer> freePages;
+	static ArrayList<Boolean> pageStatus;
+	
+	public static void initPages() {
+		Lib.assertTrue(!pagesInitialized);
+		for (int i=0; i<Machine.processor().getNumPhysPages(); i++) {
+			freePages.add(i);
+			pageStatus.add(false);
+		}
+		pagesInitialized = true;
+	}
+	
+	public static int allocatePage() {
+		freePagesMutex.acquire();
+		if (!pagesInitialized) {
+			initPages();
+		}
+		
+		if (freePages.size() < 1) {
+			freePagesMutex.release();
+			return -1;
+		} else {
+			int selPage = freePages.pop();
+			Lib.assertTrue(pageStatus.get(selPage) == false);
+			pageStatus.set(selPage, true);
+			freePagesMutex.release();
+			return selPage;
+		}
+	}
+	
+	public static void deallocatePage(int selPage) {
+		freePagesMutex.acquire();
+		Lib.assertTrue(pagesInitialized);
+		Lib.assertTrue(pageStatus.get(selPage) == true);
+		freePages.push(selPage);
+		freePagesMutex.release();
+	}
+	
+	
     /**
      * Allocate a new user kernel.
      */

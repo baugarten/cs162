@@ -167,14 +167,31 @@ public class UserProcess {
 
         byte[] memory = Machine.processor().getMemory();
         
-        // for now, just assume that virtual addresses equal physical addresses
-        if (vaddr < 0 || vaddr >= memory.length)
-            return 0;
-
-        int amount = Math.min(length, memory.length-vaddr);
-        System.arraycopy(memory, vaddr, data, offset, amount);
-
-        return amount;
+        int transferred = 0;
+        while (length > 0 && offset < data.length) {
+        	int addrOffset = vaddr % 1024;
+        	int virtualPage = vaddr / 1024;
+        	
+        	if (virtualPage >= pageTable.length || virtualPage < 0) {
+        		break;
+        	}
+        	TranslationEntry pte = pageTable[virtualPage];
+        	if (!pte.valid) {
+        		break;
+        	}
+        	pte.used = true;
+        	
+        	int physPage = pte.ppn;
+        	int physAddr = physPage * 1024 + addrOffset;
+        	
+        	int transferLength = Math.min(data.length-offset, Math.min(length, 1024-addrOffset));
+        	System.arraycopy(memory, physAddr, data, offset, transferLength);
+        	vaddr += transferLength;
+        	offset += transferLength;
+        	transferred += transferLength;
+        }
+        
+        return transferred;
     }
 
     /**
@@ -210,14 +227,33 @@ public class UserProcess {
 
         byte[] memory = Machine.processor().getMemory();
         
-        // for now, just assume that virtual addresses equal physical addresses
-        if (vaddr < 0 || vaddr >= memory.length)
-            return 0;
-
-        int amount = Math.min(length, memory.length-vaddr);
-        System.arraycopy(data, offset, memory, vaddr, amount);
-
-        return amount;
+        int transferred = 0;
+        while (length > 0 && offset < data.length) {
+        	int addrOffset = vaddr % 1024;
+        	int virtualPage = vaddr / 1024;
+        	
+        	if (virtualPage >= pageTable.length || virtualPage < 0) {
+        		break;
+        	}
+        	
+        	TranslationEntry pte = pageTable[virtualPage];
+        	if (!pte.valid || pte.readOnly) {
+        		break;
+        	}
+        	pte.used = true;
+        	pte.dirty = true;
+        	
+        	int physPage = pte.ppn;
+        	int physAddr = physPage * 1024 + addrOffset;
+        	
+        	int transferLength = Math.min(data.length-offset, Math.min(length, 1024-addrOffset));
+        	System.arraycopy(data, offset, memory, physAddr, transferLength);
+        	vaddr += transferLength;
+        	offset += transferLength;
+        	transferred += transferLength;
+        }
+        
+        return transferred;
     }
 
     /**
@@ -321,7 +357,21 @@ public class UserProcess {
             Lib.debug(dbgProcess, "\tinsufficient physical memory");
             return false;
         }
-
+        pageTable = new TranslationEntry[numPages];
+        
+        for (int i=0; i<numPages; i++) {
+        	int physPage = UserKernel.allocatePage();
+        	if (physPage < 0) {
+        		for (int j=0; j<i; j++) {
+        			UserKernel.deallocatePage(pageTable[j].ppn);
+        			pageTable[j].valid = false;
+        		}
+        		return false;
+        	}
+        	pageTable[i] = new TranslationEntry(
+        			i, physPage, true, false, false, false);
+        }
+        
         // load sections
         for (int s=0; s<coff.getNumSections(); s++) {
             CoffSection section = coff.getSection(s);
@@ -333,7 +383,11 @@ public class UserProcess {
                 int vpn = section.getFirstVPN()+i;
 
                 // for now, just assume virtual addresses=physical addresses
-                section.loadPage(i, vpn);
+                int ppn = pageTable[vpn].ppn;
+                section.loadPage(vpn, ppn);
+                if (section.isReadOnly()) {
+                	pageTable[vpn].readOnly = true;
+                }
             }
         }
         
@@ -344,6 +398,12 @@ public class UserProcess {
      * Release any resources allocated by <tt>loadSections()</tt>.
      */
     protected void unloadSections() {
+    	for (int i=0; i<pageTable.length; i++) {
+    		if (pageTable[i].valid) {
+    			UserKernel.deallocatePage(pageTable[i].ppn);
+    			pageTable[i].valid = false;
+    		}
+    	}
     }    
 
     /**
