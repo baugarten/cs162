@@ -552,9 +552,8 @@ public class UserProcess {
                 }
                 
                 //close all the opened files
-                for (Map.Entry<Integer, OpenFile>  entry : openfiles.entrySet()) {
-                        int key=entry.getKey();
-                        handleClose(key);
+                for (int i=0; i<16; i++) {              
+                        handleClose(i);
                 }
                 
                 
