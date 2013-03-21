@@ -5,6 +5,7 @@ import nachos.threads.*;
 import nachos.userprog.*;
 
 import java.io.EOFException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,7 +57,7 @@ public class UserProcess {
         unique++;
         
 		openfiles = new HashMap<Integer, OpenFile>();
-		available_descriptors = Arrays.asList(2,3,4,5,6,7,8,9,10,11,12,13,14,15);
+		available_descriptors = new ArrayList<Integer>(Arrays.asList(2,3,4,5,6,7,8,9,10,11,12,13,14,15));
 		openfiles.put(0, UserKernel.console.openForWriting());
 		openfiles.put(1, UserKernel.console.openForReading());
     }
