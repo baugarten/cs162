@@ -362,10 +362,13 @@ public class UserProcess {
         for (int i=0; i<numPages; i++) {
         	int physPage = UserKernel.allocatePage();
         	if (physPage < 0) {
-        		for (int j=0; j<i; j++) {
-        			UserKernel.deallocatePage(pageTable[j].ppn);
-        			pageTable[j].valid = false;
+        		for (int j=0; j<pageTable.length; j++) {
+        			if (pageTable[j].valid) {
+        				UserKernel.deallocatePage(pageTable[j].ppn);
+        				pageTable[j].valid = false;
+        			}
         		}
+        		coff.close();
         		return false;
         	}
         	pageTable[i] = new TranslationEntry(
@@ -384,13 +387,14 @@ public class UserProcess {
 
                 // for now, just assume virtual addresses=physical addresses
                 int ppn = pageTable[vpn].ppn;
-                section.loadPage(vpn, ppn);
+                section.loadPage(i, ppn);
                 if (section.isReadOnly()) {
                 	pageTable[vpn].readOnly = true;
                 }
             }
         }
         
+        coff.close();
         return true;
     }
 

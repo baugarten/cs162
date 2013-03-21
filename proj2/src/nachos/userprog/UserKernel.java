@@ -48,6 +48,7 @@ public class UserKernel extends ThreadedKernel {
 		Machine.interrupt().disable();
 		Lib.assertTrue(pagesInitialized);
 		Lib.assertTrue(pageStatus.get(selPage) == true);
+		pageStatus.set(selPage, false);
 		freePages.push(selPage);
 		Machine.interrupt().enable();
 	}
