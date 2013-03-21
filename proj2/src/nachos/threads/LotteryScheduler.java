@@ -8,6 +8,7 @@ import java.util.Random;
 
 import nachos.machine.Lib;
 import nachos.machine.Machine;
+import nachos.threads.PriorityScheduler.PriorityQueue;
 import nachos.threads.PriorityScheduler.ThreadState;
 import nachos.threads.PriorityScheduler.ThreadWaiter;
 
@@ -56,6 +57,45 @@ public class LotteryScheduler extends PriorityScheduler {
 			thread.schedulingState = new ThreadState(thread);
 
 		return (ThreadState) thread.schedulingState;
+	}
+	
+	public void setPriority(KThread thread, int priority) {
+		Lib.assertTrue(Machine.interrupt().disabled());
+
+		Lib.assertTrue(priority >= priorityMinimum
+				&& priority <= priorityMaximum);
+
+		getThreadState(thread).setPriority(priority);
+	}
+
+	public boolean increasePriority() {
+		boolean intStatus = Machine.interrupt().disable();
+
+		KThread thread = KThread.currentThread();
+
+		int priority = getPriority(thread);
+		if (priority == priorityMaximum)
+			return false;
+
+		setPriority(thread, priority + 1);
+
+		Machine.interrupt().restore(intStatus);
+		return true;
+	}
+
+	public boolean decreasePriority() {
+		boolean intStatus = Machine.interrupt().disable();
+
+		KThread thread = KThread.currentThread();
+
+		int priority = getPriority(thread);
+		if (priority == priorityMinimum)
+			return false;
+
+		setPriority(thread, priority - 1);
+
+		Machine.interrupt().restore(intStatus);
+		return true;
 	}
 	
 	// Test the functionality of picking the next thread as a lottery
@@ -108,6 +148,80 @@ public class LotteryScheduler extends PriorityScheduler {
 		
 	}
 	
+	// Test ticket donation and priority inversion
+		public static void selfTest(){
+			final int[] a = {1};
+			final Lock lock = new Lock();
+			final KThread donor = new KThread(new Runnable (){
+				public void run(){
+					lock.acquire();
+					/*
+					Machine.interrupt().disable();
+					System.out.print("ReadyQueue size when Donor runs = ");
+					System.out.println(ThreadedKernel.scheduler.getEffectivePriority());
+					Machine.interrupt().enable();
+					*/
+					System.out.println("Donor finishes.");
+					
+					//a[0] = 0;
+					lock.release();
+				}
+			});
+			final KThread middle = new KThread(new Runnable() {
+				public void run(){
+					
+					while(a[0] == 1){
+						KThread.yield();
+						System.out.println("Middle woken up");
+					}
+					/*
+					Machine.interrupt().disable();
+					System.out.print("ReadyQueue size when middle runs = ");
+					System.out.println(ThreadedKernel.scheduler.getEffectivePriority());
+					Machine.interrupt().enable();
+					*/
+					System.out.println("Middle finishes.");
+					
+				}
+			});
+			final KThread receiver = new KThread(new Runnable(){
+				public void run(){
+					lock.acquire();
+					donor.fork();
+					middle.fork();
+					KThread.yield();
+					/*
+					Machine.interrupt().disable();
+					System.out.print("ReadyQueue size when receveir runs = ");
+					System.out.println(ThreadedKernel.scheduler.getEffectivePriority());
+					Machine.interrupt().enable();
+					*/
+					a[0] = 0;
+					System.out.println("Receiver finishes.");
+					lock.release();
+				}
+			});
+			
+			System.out.println("-------- LotteryScheduler Test: Ticket donation and priority inversion --------");
+			System.out.println("Expected Receiver to finish first.");
+			
+			Machine.interrupt().disable();
+			ThreadedKernel.scheduler.setPriority(receiver, 2);
+			ThreadedKernel.scheduler.setPriority(donor, 100);
+			ThreadedKernel.scheduler.setPriority(middle, 100);
+			Machine.interrupt().enable();
+			receiver.fork();
+			//donor.fork();
+			//middle.fork();
+			/*
+			Machine.interrupt().disable();
+			System.out.print("ReadyQueue size after 3 forks = ");
+			System.out.println(ThreadedKernel.scheduler.getEffectivePriority());
+			Machine.interrupt().enable();
+			*/
+			ThreadedKernel.alarm.waitUntil(10000);
+			System.out.println("-------- End testing --------");
+		}
 	/**
 	 * The default priority for a new thread. Do not change this value.
 	 */
@@ -122,110 +236,197 @@ public class LotteryScheduler extends PriorityScheduler {
 	public static final int priorityMaximum = Integer.MAX_VALUE;
 	
 	
-    protected class LotteryQueue extends PriorityQueue{
-    	java.util.HashMap<ThreadState,Integer> waitQueue = new java.util.HashMap<ThreadState, Integer>();
+    protected class LotteryQueue extends ThreadQueue{
+    	private java.util.HashMap<ThreadState,Integer> waitQueue ;
+    	boolean transferPriority;
+    	private ThreadState acquired;
     	private int sum;
+    	boolean sumChange, starter, valid;
 
 		LotteryQueue(boolean transferPriority) {
-			super(transferPriority);
+			waitQueue = new java.util.HashMap<ThreadState, Integer>();
+			this.transferPriority = transferPriority;
 			sum = 0;
+			sumChange = true;
+			starter = true;
+			valid = false;
 		}
 		
-		public void newSum(int newsum) {
-			sum = newsum;
-			if (this.acquired != null) {
+		// DONE
+		public void newSum(int newsum, ThreadState ts) {
+			//int oldSum = this.sum;
+			if (newsum < 0){
+				sum = 0;
+			}
+			else {
+				sum = newsum;
+			}
+			
+			if(this.acquired != null){
 				this.acquired.priorityChange(this.sum);
 			}
+			/* For now, no telling the acquired the queue has changed
+			if (this.acquired != null){
+				if(ts == acquired && sum > oldSum) {
+					this.acquired.setEffectivePriority(sum - oldSum);
+					//this.acquired.priorityChange(this.sum);
+				}
+				else{
+				this.acquired.priorityChange(this.sum);
+				}
+			}
+			*/
 		}
 		
+		private void announce(){
+			starter = true;
+			this.acquired.priorityChange(sum);
+		}
+		
+		private void announceSumChange(ThreadState ts){
+			if (this.acquired != null && starter == false){
+				announce();
+				starter = false;
+			}
+		}
+		
+		//DONE
 		public void updateWaitingThread(ThreadState ts) {
-			dbg("Update " + ts);
 			Lib.assertTrue(waitQueue.containsKey(ts));
+			
 			int effectivePriority = ts.getEffectivePriority();
-			if (ts.priority == effectivePriority) {
+			int oldEffectivePrio = waitQueue.get(ts).intValue();
+			if (oldEffectivePrio == effectivePriority) {
 				return;
 			}
-			// put the thread on the lottery queue
-			waitQueue.put(ts, new Integer(effectivePriority));
-
+			
+			//ts.setValid();
+			// update the queue
+			waitQueue.put(ts,new Integer(effectivePriority));
 			// update the sum of the lottery queue
-			newSum(getSum() + ts.effectivePriority);
+			/*
+			if(acquired != ts){
+				newSum(getSum() - oldEffectivePrio + effectivePriority, ts);
+			}
+			*/
+			// flag the queue that its sum has changed
+			sumChange = true;
+			
+			announceSumChange(ts);
+				
 		}
 		
+		//DONE
 		public void dequeueWaitingThread(ThreadState ts) {
-			dbg("DQ " + ts);
 			Lib.assertTrue(waitQueue.containsKey(ts));
 			
 			// remove the thread from the lottery queue
 			waitQueue.remove(ts);
 			
 			// update new sum of the lottery queue
-			newSum(getSum() - ts.getEffectivePriority());
+			//newSum(getSum() - ts.getEffectivePriority(), ts);
+			
+			// flag the queue that its sum has changed
+			sumChange = true;
+			announceSumChange(ts);
 		}
 		
+		// DONE
 		public void enqueueWaitingThread(ThreadState ts) {
-			dbg("EQ " + ts);
 			int effectivePriority = ts.getEffectivePriority();
 
 			Lib.assertTrue(!waitQueue.containsKey(ts));
 			
-			// update the new effectivePriority of the thread on queue
-			waitQueue.put(ts,new Integer(effectivePriority));
+			// put thread on queue
+			if(acquired == ts){
+				waitQueue.put(ts, new Integer(effectivePriority - getSum()));
+			} else {
+				waitQueue.put(ts, new Integer(effectivePriority));
+			}
+			
+			ts.waitForAccess(this);
+			//ts.isValid();
 			
 			// update sum of lottery queue
-			newSum(getSum() + effectivePriority);
-			dbg("EQ Done " + ts);
+			/*
+			if(acquired != ts){
+				newSum(getSum() + effectivePriority, ts);
+			}
+			else {
+				newSum(effectivePriority, ts);
+			}
+			*/
+			
+			// flag the queue that its sum has changed
+			sumChange = true;
+			announceSumChange(ts);
 		}
 		
-		// add a thread to the queue
+		// add a thread to the queue - DONE
 		public void waitForAccess(KThread thread) {
 			Lib.assertTrue(Machine.interrupt().disabled());
 			ThreadState ts = getThreadState(thread);
 			
 			enqueueWaitingThread(ts);
-			dbg("WFA " + ts);
-			ts.waitForAccess(this);
-			dbg("WFA Done " + ts);
 		}
-				
+		
+		
 		public void acquire(KThread thread) {
 			Lib.assertTrue(Machine.interrupt().disabled());
 			
-			LotteryScheduler.ThreadState ts = getThreadState(thread);
-			dbg("Acquire " + ts);
-			
+			ThreadState ts = getThreadState(thread);
+
 			// unacquire previous
 			if (acquired != null) {
 				acquired.unacquire(this);
 			}
 			
-			// if thread on waiting queue, nuke it
+			// if thread on waiting queue, dequeue it
 			if (waitQueue.containsKey(ts)) {
 				dequeueWaitingThread(ts);
-				//System.out.println("NUKED");
 			}
 			
-			// set acquired
 			this.acquired = ts;
 			ts.acquire(this);
-			
-			dbg("Acquire done " + ts);
-		}
-		
-		public int getSum(){
-			return sum;
+
 		}
 		
 		public int size(){
 			return waitQueue.size();
 		}
 		
-		// hold a lottery
+		// DONE
+		public KThread nextThread() {
+			Lib.assertTrue(Machine.interrupt().disabled());
+
+			ThreadState ts = pickNextThread();
+			
+			if (ts == null) {
+				if (acquired != null) {
+					acquired.unacquire(this);
+				}
+				return null;
+			}
+			acquire(ts.thread);
+			
+			return ts.thread;
+		}
+		
+		// hold a lottery - DONE
 		protected ThreadState pickNextThread() {
 			int total = 0;
+			int num;
 			ThreadState result = null;
 			Random rand = new Random();
-			int num = rand.nextInt(sum) + 1;
+			if (waitQueue.size() == 0){
+				return null;
+			}
+			
+			if (sumChange){
+				updateSum();
+			}
+			
+			num = rand.nextInt(sum) + 1;
 			Iterator<ThreadState> iter = waitQueue.keySet().iterator();
 			while(num > total && iter.hasNext()){
 				result = iter.next();
@@ -234,33 +435,153 @@ public class LotteryScheduler extends PriorityScheduler {
 			return result;
 		}
     	
+		// DONE
+		public int getSum(){
+			if (sumChange == false){
+				return sum;
+			} else {
+				updateSum();
+				return sum;
+			}
+		}
+		
+		// DONE
+		private void updateSum(){
+			Lib.assertTrue(sumChange == true);
+			int total = 0;
+			Map.Entry<ThreadState, Integer> value;
+			Iterator<Map.Entry<ThreadState, Integer>> iter = waitQueue.entrySet().iterator(); 
+			while(iter.hasNext()){
+				value = iter.next();
+				if(value.getKey().isValid()){
+					total += value.getValue().intValue();
+				} else {
+					updateWaitingThread(value.getKey());
+				}
+			}
+			sum = total;
+			sumChange = false;
+			valid = true;
+		}
+		
 		public boolean contains(KThread thread) {
 			ThreadState ts = getThreadState(thread);
 			return waitQueue.containsKey(ts);
 		}
 		
+		public void print(){
+			Lib.assertTrue(Machine.interrupt().disabled());
+			System.out.println("Number of tickets = " + getSum() + "\tNumber of threads on queue = " + size());
+			System.out.println(waitQueue.toString());
+		}
+		
+		public boolean empty() {
+			return waitQueue.size() == 0;
+		}
+		
+		public boolean isValid(){
+			return !sumChange;
+		}
     }
     
     public class ThreadState extends PriorityScheduler.ThreadState{
-    	private HashSet<LotteryQueue> acquiredpqs = new HashSet<LotteryQueue>();
-		private HashSet<LotteryQueue> waitingpqs = new HashSet<LotteryQueue>();
-    	
+    	private boolean updatedEffectivePrio;
+    	private boolean starter;
 		public ThreadState(KThread thread){
     		super(thread);
+    		updatedEffectivePrio = true;
+    		starter = true;
     	}
     	
-    	public int calculateEffectivePriority() {
-			int sum = priority;
-			int queueSum = 0;
-			for (LotteryQueue queue : acquiredpqs) {
-				queueSum = queue.getSum();
-				if (Integer.MAX_VALUE - sum < queueSum){
-					return Integer.MAX_VALUE;
-				}
-				sum += queueSum;
+		// DONE
+		public int getEffectivePriority(){
+			if(!updatedEffectivePrio){
+				return calculateEffectivePriority();
 			}
+			else {
+				return effectivePriority;
+			}
+		}
+		
+		// DONE
+		public void priorityChange(int newPri) {
+			updatedEffectivePrio = false;
+			if(!starter){
+				announcePrioChange();	
+				starter = false;
+			}
+		}
+		
+		public void setEffectivePriority(int value){
+			Lib.assertTrue(this.priority >= value);
+			this.effectivePriority = value;
+			announcePrioChange();
+		}
+		
+		// DONE
+    	public int calculateEffectivePriority() {
+    		
+    			//starter = true;
+    			int sum = priority;
+    			int queueSum = 0;
+    			Iterator<ThreadQueue> iter = acquiredpqs.iterator();
+    			LotteryQueue queue;
+    			while(iter.hasNext()){
+    				queue = (LotteryQueue) iter.next();
+    				queueSum = queue.getSum();
+    				if (Integer.MAX_VALUE - sum < queueSum){
+    					return Integer.MAX_VALUE;
+    				}
+    				sum += queueSum;
+    			}
+    		updatedEffectivePrio = true;
 			return sum;
 		}
     	
+    	// DONE
+    	void effectivePriorityUpdated() {
+    		
+			int newEffectivePriority = calculateEffectivePriority();
+			if (newEffectivePriority != effectivePriority) {
+				effectivePriority = newEffectivePriority;
+				updatedEffectivePrio = false;
+				announcePrioChange();
+			}
+		}
+    	
+    	// DONE
+    	public void waitForAccess(ThreadQueue waitQueue) {
+			waitingpqs.add(waitQueue);
+		}
+    	
+    	//DONE
+    	void announcePrioChange(){
+    		starter = true;
+    		LotteryQueue queue;
+    		Iterator<ThreadQueue> iter;
+    		iter = waitingpqs.iterator();
+			while(iter.hasNext()){
+				queue = (LotteryQueue) iter.next();
+				queue.updateWaitingThread(this);
+			}
+			starter = false;
+    	}
+    	
+    	// DONE
+    	public void acquire(ThreadQueue waitQueue) {
+			waitingpqs.remove(waitQueue);
+			acquiredpqs.add(waitQueue);
+			effectivePriorityUpdated();
+		}
+
+    	//DONE
+    	public void unacquire(ThreadQueue noQueue) {
+			acquiredpqs.remove(noQueue);
+			effectivePriorityUpdated();
+		}
+    	
+    	public boolean isValid(){
+    		return updatedEffectivePrio;
+    	}
     }
 }
