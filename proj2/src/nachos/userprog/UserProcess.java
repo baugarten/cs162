@@ -188,6 +188,7 @@ public class UserProcess {
         	System.arraycopy(memory, physAddr, data, offset, transferLength);
         	vaddr += transferLength;
         	offset += transferLength;
+        	length -= transferLength;
         	transferred += transferLength;
         }
         
@@ -250,6 +251,7 @@ public class UserProcess {
         	System.arraycopy(data, offset, memory, physAddr, transferLength);
         	vaddr += transferLength;
         	offset += transferLength;
+        	length -= transferLength;
         	transferred += transferLength;
         }
         
