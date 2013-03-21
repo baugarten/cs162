@@ -58,8 +58,8 @@ public class UserProcess {
         
 		openfiles = new HashMap<Integer, OpenFile>();
 		available_descriptors = new ArrayList<Integer>(Arrays.asList(2,3,4,5,6,7,8,9,10,11,12,13,14,15));
-		openfiles.put(0, UserKernel.console.openForWriting());
-		openfiles.put(1, UserKernel.console.openForReading());
+		openfiles.put(0, UserKernel.console.openForReading());
+		openfiles.put(1, UserKernel.console.openForWriting());
     }
     
     /**
