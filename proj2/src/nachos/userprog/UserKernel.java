@@ -10,43 +10,46 @@ import java.util.*;
  */
 public class UserKernel extends ThreadedKernel {
 	static boolean pagesInitialized = false;
-	static Lock freePagesMutex;
+	//static Lock freePagesMutex = null;
 	static LinkedList<Integer> freePages;
 	static ArrayList<Boolean> pageStatus;
 	
 	public static void initPages() {
 		Lib.assertTrue(!pagesInitialized);
+		freePages = new LinkedList<Integer>();
+		pageStatus = new ArrayList<Boolean>();
 		for (int i=0; i<Machine.processor().getNumPhysPages(); i++) {
 			freePages.add(i);
 			pageStatus.add(false);
 		}
 		pagesInitialized = true;
+		Machine.interrupt().enable();
 	}
 	
 	public static int allocatePage() {
-		freePagesMutex.acquire();
+		Machine.interrupt().disable();
 		if (!pagesInitialized) {
 			initPages();
 		}
 		
 		if (freePages.size() < 1) {
-			freePagesMutex.release();
+			Machine.interrupt().enable();
 			return -1;
 		} else {
 			int selPage = freePages.pop();
 			Lib.assertTrue(pageStatus.get(selPage) == false);
 			pageStatus.set(selPage, true);
-			freePagesMutex.release();
+			Machine.interrupt().enable();
 			return selPage;
 		}
 	}
 	
 	public static void deallocatePage(int selPage) {
-		freePagesMutex.acquire();
+		Machine.interrupt().disable();
 		Lib.assertTrue(pagesInitialized);
 		Lib.assertTrue(pageStatus.get(selPage) == true);
 		freePages.push(selPage);
-		freePagesMutex.release();
+		Machine.interrupt().enable();
 	}
 	
 	
