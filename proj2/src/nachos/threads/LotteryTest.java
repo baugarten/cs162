@@ -119,8 +119,8 @@ public class LotteryTest {
 
 		Machine.interrupt().disable();
 		ThreadedKernel.scheduler.setPriority(receiver, 10);
-		ThreadedKernel.scheduler.setPriority(donor, 300);
-		ThreadedKernel.scheduler.setPriority(middle, 1000);
+		ThreadedKernel.scheduler.setPriority(donor, 1000);
+		ThreadedKernel.scheduler.setPriority(middle, 600);
 		Machine.interrupt().enable();
 		receiver.fork();
 		donor.fork();
