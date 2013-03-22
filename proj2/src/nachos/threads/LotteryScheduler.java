@@ -144,6 +144,7 @@ public class LotteryScheduler extends PriorityScheduler {
 			thread = iter.next();
 			System.out.println(thread.thread.getName() + " is picked " + result.get(thread).intValue() + " times");
 		}
+		
 		System.out.println("---------- End Lottery Test---------");
 		
 	}
@@ -198,6 +199,28 @@ public class LotteryScheduler extends PriorityScheduler {
 			middle.fork();
 			ThreadedKernel.alarm.waitUntil(100000);
 			System.out.println("-------- End testing --------");
+		}
+		
+		public static void testYield(){
+			final int[] b = { 10 };
+			final KThread decreaser = new KThread(new Runnable() {
+				public void run() {
+					while (b[0] >= 0) {
+						Machine.interrupt().disable();
+						System.out.println(b[0]);
+						b[0] -= 1;
+						KThread.yield();
+					}
+					System.out.println("Decreaser finishes.");
+				}
+			});
+			
+			System.out.println("-------- LotteryScheduler Test: KThread.yield() --------");
+			Machine.interrupt().disable();
+			ThreadedKernel.scheduler.setPriority(decreaser, 10);
+			Machine.interrupt().enable();
+			decreaser.fork();
+			ThreadedKernel.alarm.waitUntil(10000);
 		}
 	/**
 	 * The default priority for a new thread. Do not change this value.
@@ -420,6 +443,17 @@ public class LotteryScheduler extends PriorityScheduler {
     		starter = false;
     	}
     	
+		/**
+		 * Set the priority of the associated thread to the specified value.
+		 * 
+		 * @param priority
+		 *            the new priority.
+		 */
+		public void setPriority(int priority) {
+			this.priority = priority;
+			effectivePriorityUpdated();
+		}
+		
 		public int getEffectivePriority(){
 			if(!updatedEffectivePrio){
 				return calculateEffectivePriority();
