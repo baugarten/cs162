@@ -3,6 +3,8 @@ package nachos.userprog;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
+import nachos.userprog.UserProcess.childProcess;
+
 import java.util.*;
 
 /**
@@ -120,6 +122,7 @@ public class UserKernel extends ThreadedKernel {
 	
 	System.out.println("Page allocation OK.");
 	
+	// ******************** CONSOLE TEST
 	System.out.println("Testing the console device. Typed characters");
 	System.out.println("will be echoed until q is typed.");
 

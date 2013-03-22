@@ -364,7 +364,8 @@ public class UserProcess {
         for (int i=0; i<numPages; i++) {
         	int physPage = UserKernel.allocatePage();
         	if (physPage < 0) {
-        		for (int j=0; j<pageTable.length; j++) {
+        		System.out.println("\tunable to allocate pages; tried " + numPages + ", did " + i );
+        		for (int j=0; j<i; j++) {
         			if (pageTable[j].valid) {
         				UserKernel.deallocatePage(pageTable[j].ppn);
         				pageTable[j].valid = false;
@@ -760,6 +761,7 @@ public class UserProcess {
         default:
             Lib.debug(dbgProcess, "Unexpected exception: " +
                       Processor.exceptionNames[cause]);
+            handleExit(-1);
             Lib.assertNotReached("Unexpected exception");
         }
     }
