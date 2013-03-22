@@ -103,10 +103,10 @@ public class LotteryScheduler extends PriorityScheduler {
 		final KThread donor = new KThread(new Runnable() {
 			public void run() {
 				lock.acquire();
-				/*while (a[0] > 0) {
-					//KThread.yield();
+				while (a[0] > 0) {
+					KThread.yield();
 				}
-				*/
+				
 				Machine.interrupt().disable();
 				System.out.println("EP of the Donor = " + ThreadedKernel.scheduler.getEffectivePriority());
 				Machine.interrupt().enable();
@@ -117,11 +117,11 @@ public class LotteryScheduler extends PriorityScheduler {
 		final KThread middle = new KThread(new Runnable() {
 			public void run() {
 				lock.acquire();
-				/*
+				
 				while (a[0] > 0) {
-					//KThread.yield();
+					KThread.yield();
 				}
-				*/
+				
 				Machine.interrupt().disable();
 				System.out.println("EP of the Middle = " + ThreadedKernel.scheduler.getEffectivePriority());
 				Machine.interrupt().enable();
@@ -132,8 +132,9 @@ public class LotteryScheduler extends PriorityScheduler {
 		final KThread receiver = new KThread(new Runnable() {
 			public void run() {
 				lock.acquire();
-				a[0] = 0;
+				
 				KThread.yield();
+				a[0] = 0;
 				Machine.interrupt().disable();
 				System.out.println("EP of the Receiver = " + ThreadedKernel.scheduler.getEffectivePriority());
 				Machine.interrupt().enable();
@@ -146,7 +147,7 @@ public class LotteryScheduler extends PriorityScheduler {
 		System.out.println("Expected Receiver to finish first.");
 
 		Machine.interrupt().disable();
-		ThreadedKernel.scheduler.setPriority(receiver, 10);
+		ThreadedKernel.scheduler.setPriority(receiver, 1000);
 		ThreadedKernel.scheduler.setPriority(donor, 1000);
 		ThreadedKernel.scheduler.setPriority(middle, 600);
 		Machine.interrupt().enable();
@@ -156,7 +157,7 @@ public class LotteryScheduler extends PriorityScheduler {
 		Machine.interrupt().disable();
 		System.out.println("EP of the main thread = " + ThreadedKernel.scheduler.getEffectivePriority());
 		Machine.interrupt().enable();
-		ThreadedKernel.alarm.waitUntil(100000);
+		ThreadedKernel.alarm.waitUntil(10000000);
 		System.out.println("-------- End testing --------");
 	}
 	
@@ -304,12 +305,11 @@ public class LotteryScheduler extends PriorityScheduler {
 			this.transferPriority = transferPriority;
 			sum = 0;
 			sumChange = true;
-			// starter = false;
-			// valid = false;
 		}
 
 		public void signal(ThreadState ts, int tickets) {
-			if (acquired != null) {
+			
+			if (transferPriority == true && acquired != null) {
 				if (acquired == ts) {
 					acquired.setEffectivePriority(tickets - sum);
 				} else {
@@ -324,15 +324,11 @@ public class LotteryScheduler extends PriorityScheduler {
 			}
 
 			// update the value of a threadstate on the queue
-			waitQueue.put(ts, new Integer(tickets));
+			waitQueue.put(ts, new Integer(Math.min(tickets,  threadTickets(ts))));
 
 			// flag the queue that its sum has changed and announce to others
 			sumChange = true;
 			signal(ts, tickets);
-			if (acquired != null) {
-				acquired.effectivePriorityUpdated();
-			}
-
 		}
 
 		public void dequeueWaitingThread(ThreadState ts) {
@@ -345,22 +341,19 @@ public class LotteryScheduler extends PriorityScheduler {
 			sumChange = true;
 
 			signal(ts, tickets.intValue());
-			if (acquired != null) {
-				acquired.effectivePriorityUpdated();
-			}
 		}
 
 		// DONE
 		public void enqueueWaitingThread(ThreadState ts) {
-			int effectivePriority = ts.getEffectivePriority();
+			int tickets = threadTickets(ts);
 
 			Lib.assertTrue(!waitQueue.containsKey(ts));
 
-			waitQueue.put(ts, new Integer(effectivePriority));
+			waitQueue.put(ts, new Integer(tickets));
 
 			// flag the queue that its sum has changed
 			sumChange = true;
-			signal(ts, effectivePriority);
+			signal(ts, tickets);
 
 		}
 
@@ -447,6 +440,15 @@ public class LotteryScheduler extends PriorityScheduler {
 			sumChange = false;
 			return sum;
 		}
+		
+		private int threadTickets(ThreadState ts){
+			if (transferPriority){
+				return ts.getEffectivePriority();
+			}
+			else {
+				return ts.getPriority();
+			}
+		}
 
 		public boolean contains(KThread thread) {
 			ThreadState ts = getThreadState(thread);
@@ -474,8 +476,6 @@ public class LotteryScheduler extends PriorityScheduler {
 	}
 
 	public class ThreadState extends PriorityScheduler.ThreadState {
-		private HashMap<ThreadState, Integer> donors;
-
 		public ThreadState(KThread thread) {
 			super(thread);
 		}
