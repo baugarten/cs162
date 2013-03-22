@@ -3,11 +3,52 @@ package nachos.userprog;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
+import java.util.*;
 
 /**
  * A kernel that can support multiple user processes.
  */
 public class UserKernel extends ThreadedKernel {
+	static LinkedList<Integer> freePages;
+	static ArrayList<Boolean> pageStatus;
+	
+	static {
+		initPages();
+	}
+	
+	public static void initPages() {
+		freePages = new LinkedList<Integer>();
+		pageStatus = new ArrayList<Boolean>();
+		for (int i=0; i<Machine.processor().getNumPhysPages(); i++) {
+			freePages.add(i);
+			pageStatus.add(false);
+		}
+	}
+	
+	public static int allocatePage() {
+		Machine.interrupt().disable();
+		
+		if (freePages.size() < 1) {
+			Machine.interrupt().enable();
+			return -1;
+		} else {
+			int selPage = freePages.pop();
+			Lib.assertTrue(pageStatus.get(selPage) == false);
+			pageStatus.set(selPage, true);
+			Machine.interrupt().enable();
+			return selPage;
+		}
+	}
+	
+	public static void deallocatePage(int selPage) {
+		Machine.interrupt().disable();
+		Lib.assertTrue(pageStatus.get(selPage) == true);
+		pageStatus.set(selPage, false);
+		freePages.push(selPage);
+		Machine.interrupt().enable();
+	}
+	
+	
     /**
      * Allocate a new user kernel.
      */
@@ -35,6 +76,50 @@ public class UserKernel extends ThreadedKernel {
     public void selfTest() {
 	super.selfTest();
 
+	System.out.println("Testing allocate");
+	ArrayList<Integer> testAlloc = new ArrayList<Integer>();
+	int allocPage;
+	while ((allocPage = allocatePage()) >= 0) {
+		testAlloc.add(allocPage);
+	}
+	int allocated = testAlloc.size();
+	System.out.println(allocated + " pages allocated");
+	
+	System.out.println("Testing deallocate odd (fragmentation check)");
+	int deallocated = 0;
+	for (int i=testAlloc.size()-1; i>=0; i-=2) {
+		deallocatePage( testAlloc.remove(i) );
+		deallocated ++;
+	}
+	
+	System.out.println("Reallocating odd pages");
+	for (int i=0; i<deallocated; i++) {
+		allocPage = allocatePage();
+		Lib.assertTrue(allocPage >= 0);
+		testAlloc.add(allocPage);
+	}
+	
+	System.out.println("Deallocating all pages");
+	deallocated = 0;
+	for (Integer deallocPage:testAlloc) {
+		deallocatePage(deallocPage);
+		deallocated++;
+	}
+	testAlloc.clear();
+	Lib.assertTrue(deallocated == allocated);
+	
+	System.out.println("Reallocating all pages");
+	for (int i=0; i<allocated; i++) {
+		testAlloc.add(allocatePage());
+	}
+	
+	System.out.println("Deallocating all pages");
+	for (Integer deallocPage:testAlloc) {
+		deallocatePage(deallocPage);
+	}
+	
+	System.out.println("Page allocation OK.");
+	
 	System.out.println("Testing the console device. Typed characters");
 	System.out.println("will be echoed until q is typed.");
 
