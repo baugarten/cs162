@@ -364,7 +364,7 @@ public class UserProcess {
         for (int i=0; i<numPages; i++) {
         	int physPage = UserKernel.allocatePage();
         	if (physPage < 0) {
-        		System.out.println("\tunable to allocate pages; tried " + numPages + ", did " + i );
+        		Lib.debug(dbgProcess, "\tunable to allocate pages; tried " + numPages + ", did " + i );
         		for (int j=0; j<i; j++) {
         			if (pageTable[j].valid) {
         				UserKernel.deallocatePage(pageTable[j].ppn);
