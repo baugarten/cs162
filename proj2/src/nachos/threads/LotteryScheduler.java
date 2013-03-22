@@ -97,6 +97,187 @@ public class LotteryScheduler extends PriorityScheduler {
 		return true;
 	}
 
+	public static void testSimpleDonation() {
+		final int[] a = { 1 };
+		final Lock lock = new Lock();
+		final KThread donor = new KThread(new Runnable() {
+			public void run() {
+				lock.acquire();
+				/*while (a[0] > 0) {
+					//KThread.yield();
+				}
+				*/
+				Machine.interrupt().disable();
+				System.out.println("EP of the Donor = " + ThreadedKernel.scheduler.getEffectivePriority());
+				Machine.interrupt().enable();
+				System.out.println("Donor finishes.");
+				lock.release();
+			}
+		});
+		final KThread middle = new KThread(new Runnable() {
+			public void run() {
+				lock.acquire();
+				/*
+				while (a[0] > 0) {
+					//KThread.yield();
+				}
+				*/
+				Machine.interrupt().disable();
+				System.out.println("EP of the Middle = " + ThreadedKernel.scheduler.getEffectivePriority());
+				Machine.interrupt().enable();
+				System.out.println("Middle finishes.");
+				lock.release();
+			}
+		});
+		final KThread receiver = new KThread(new Runnable() {
+			public void run() {
+				lock.acquire();
+				a[0] = 0;
+				KThread.yield();
+				Machine.interrupt().disable();
+				System.out.println("EP of the Receiver = " + ThreadedKernel.scheduler.getEffectivePriority());
+				Machine.interrupt().enable();
+				System.out.println("Receiver finishes.");
+				lock.release();
+			}
+		});
+
+		System.out.println("-------- LotteryScheduler Test: Ticket donation and priority inversion --------");
+		System.out.println("Expected Receiver to finish first.");
+
+		Machine.interrupt().disable();
+		ThreadedKernel.scheduler.setPriority(receiver, 10);
+		ThreadedKernel.scheduler.setPriority(donor, 1000);
+		ThreadedKernel.scheduler.setPriority(middle, 600);
+		Machine.interrupt().enable();
+		receiver.fork();
+		donor.fork();
+		middle.fork();
+		Machine.interrupt().disable();
+		System.out.println("EP of the main thread = " + ThreadedKernel.scheduler.getEffectivePriority());
+		Machine.interrupt().enable();
+		ThreadedKernel.alarm.waitUntil(100000);
+		System.out.println("-------- End testing --------");
+	}
+	
+	
+	public static void testSimple() {
+		final int[] a = { 1 };
+		final Lock lock = new Lock();
+		final Condition2 con_var = new Condition2(lock);
+		final KThread donor = new KThread(new Runnable() {
+			public void run() {
+				lock.acquire();
+				while (a[0] > 0) {
+					con_var.sleep();
+				}
+				con_var.wake();
+				System.out.println("Donor finishes.");
+				lock.release();
+			}
+		});
+		final KThread middle = new KThread(new Runnable() {
+			public void run() {
+				lock.acquire();
+				while (a[0] > 0) {
+					con_var.sleep();
+				}
+				con_var.wake();
+				System.out.println("Middle finishes.");
+				lock.release();
+			}
+		});
+		final KThread receiver = new KThread(new Runnable() {
+			public void run() {
+				lock.acquire();
+				a[0] = 0;
+				Machine.interrupt().disable();
+				System.out.println("EP of the receiver = " + ThreadedKernel.scheduler.getEffectivePriority());
+				Machine.interrupt().enable();
+				con_var.wakeAll();
+				System.out.println("Receiver finishes.");
+				lock.release();
+			}
+		});
+
+		System.out.println("-------- LotteryScheduler Test: Ticket donation and priority inversion --------");
+		System.out.println("Expected Receiver to finish first.");
+
+		Machine.interrupt().disable();
+		ThreadedKernel.scheduler.setPriority(receiver, 10);
+		ThreadedKernel.scheduler.setPriority(donor, 1000);
+		ThreadedKernel.scheduler.setPriority(middle, 600);
+		Machine.interrupt().enable();
+		receiver.fork();
+		donor.fork();
+		middle.fork();
+		Machine.interrupt().disable();
+		System.out.println("EP of the main thread = " + ThreadedKernel.scheduler.getEffectivePriority());
+		Machine.interrupt().enable();
+		ThreadedKernel.alarm.waitUntil(100000);
+		System.out.println("-------- End testing --------");
+	}
+	
+	public static void testAddOrSubtract() {
+		final int[] a = { 1 };
+		final int[] b = { 20 };
+		final Lock lock = new Lock();
+		final Condition2 con_var = new Condition2(lock);
+		final KThread decreaser = new KThread(new Runnable() {
+			public void run() {
+				lock.acquire();
+				while (b[0] > 1) {
+					Machine.interrupt().disable();
+					ThreadedKernel.scheduler.decreasePriority();
+					System.out.println("Number of tickets of Decreaser = "
+							+ ThreadedKernel.scheduler.getPriority());
+					Machine.interrupt().enable();
+					b[0] -= 1;
+					con_var.wake();
+					con_var.sleep();
+				}
+				con_var.wake();
+				System.out.println("Decreaser finishes.");
+				lock.release();
+			}
+		});
+
+		final KThread increaser = new KThread(new Runnable() {
+			public void run() {
+				lock.acquire();
+				while (a[0] < 20) {
+					Machine.interrupt().disable();
+					ThreadedKernel.scheduler.increasePriority();
+					System.out.println("Number of tickets of Increaser = "
+							+ ThreadedKernel.scheduler.getPriority());
+					Machine.interrupt().enable();
+					a[0] += 1;
+					con_var.wake();
+					con_var.sleep();
+				}
+				con_var.wake();
+				System.out.println("Increaser finishes.");
+				lock.release();
+			}
+		});
+
+		System.out
+				.println("-------- LotteryScheduler Test: increasePriority and decreasePriority --------");
+
+		Machine.interrupt().disable();
+		ThreadedKernel.scheduler.setPriority(increaser, 1);
+		ThreadedKernel.scheduler.setPriority(decreaser, 200);
+		System.out.println("Starting number of tickets of increaser = 1");
+		System.out.println("Starting number of tickets of decreaser = 20");
+		Machine.interrupt().enable();
+
+		increaser.fork();
+		decreaser.fork();
+
+		ThreadedKernel.alarm.waitUntil(10000);
+		System.out
+				.println("------------------------------- End Test -------------------------------------");
+	}
 
 	/**
 	 * The default priority for a new thread. Do not change this value.
@@ -127,17 +308,27 @@ public class LotteryScheduler extends PriorityScheduler {
 			// valid = false;
 		}
 
+		public void signal(ThreadState ts, int tickets) {
+			if (acquired != null) {
+				if (acquired == ts) {
+					acquired.setEffectivePriority(tickets - sum);
+				} else {
+					acquired.effectivePriorityUpdated();
+				}
+			}
+		}
+
 		public void updateWaitingThread(ThreadState ts, int tickets) {
 			if (waitQueue.size() == 0) {
 				return;
 			}
 
 			// update the value of a threadstate on the queue
-			waitQueue.put(ts, new Integer(waitQueue.get(ts).intValue()
-					+ tickets));
+			waitQueue.put(ts, new Integer(tickets));
 
 			// flag the queue that its sum has changed and announce to others
 			sumChange = true;
+			signal(ts, tickets);
 			if (acquired != null) {
 				acquired.effectivePriorityUpdated();
 			}
@@ -153,6 +344,7 @@ public class LotteryScheduler extends PriorityScheduler {
 			// flag the queue that its sum has changed
 			sumChange = true;
 
+			signal(ts, tickets.intValue());
 			if (acquired != null) {
 				acquired.effectivePriorityUpdated();
 			}
@@ -168,9 +360,8 @@ public class LotteryScheduler extends PriorityScheduler {
 
 			// flag the queue that its sum has changed
 			sumChange = true;
-			if (acquired != null) {
-				acquired.effectivePriorityUpdated();
-			}
+			signal(ts, effectivePriority);
+
 		}
 
 		public void waitForAccess(KThread thread) {
@@ -304,8 +495,7 @@ public class LotteryScheduler extends PriorityScheduler {
 			} else {
 				this.effectivePriority = value;
 			}
-			this.effectivePriority = value;
-			priorityChange(0);
+			announcePrioChange();
 		}
 
 		public int calculateEffectivePriority() {
