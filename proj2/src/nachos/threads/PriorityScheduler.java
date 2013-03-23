@@ -1,6 +1,7 @@
 package nachos.threads;
 
 import nachos.machine.*;
+import nachos.threads.LotteryScheduler.LotteryQueue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -130,11 +131,11 @@ public class PriorityScheduler extends Scheduler {
 	 * A <tt>ThreadQueue</tt> that sorts threads by priority.
 	 */
 	protected class PriorityQueue extends ThreadQueue {
-		HashMap<ThreadState, ThreadWaiter> threadWaiterHash = 	// KThread -> threadWaiter on PQ
+		private HashMap<ThreadState, ThreadWaiter> threadWaiterHash = 	// KThread -> threadWaiter on PQ
 				new HashMap<ThreadState, ThreadWaiter>(); 
-		java.util.PriorityQueue<ThreadWaiter> waitQueue =
+		private java.util.PriorityQueue<ThreadWaiter> waitQueue =
 				new java.util.PriorityQueue<ThreadWaiter>();
-		private ThreadState acquired;
+		protected ThreadState acquired;
 
 		public boolean transferPriority;
 		private int max = 0;
@@ -310,6 +311,7 @@ public class PriorityScheduler extends Scheduler {
 		public boolean empty() {
 			return waitQueue.size() == 0;
 		}
+		
 	}
 
 	/**
@@ -330,8 +332,8 @@ public class PriorityScheduler extends Scheduler {
 		 * The list of priority queues for which I'm holding the resource or
 		 * waiting for the resource
 		 */
-		private HashSet<PriorityQueue> acquiredpqs = new HashSet<PriorityQueue>();
-		private HashSet<PriorityQueue> waitingpqs = new HashSet<PriorityQueue>();
+		protected HashSet<ThreadQueue> acquiredpqs = new HashSet<ThreadQueue>();
+		protected HashSet<ThreadQueue> waitingpqs = new HashSet<ThreadQueue>();
 		// - should never be more than one!
 		
 		/**
@@ -348,12 +350,17 @@ public class PriorityScheduler extends Scheduler {
 		}
 
 		void effectivePriorityUpdated() {
+			PriorityQueue queue;
+			Iterator<ThreadQueue> iter;
 			int newEffectivePriority = calculateEffectivePriority();
 			//System.out.println("  pri update " + this + " " + newEffectivePriority + "/" + effectivePriority);
 			if (newEffectivePriority != effectivePriority) {
 				effectivePriority = newEffectivePriority;
-				for (PriorityQueue queue : waitingpqs) {
+				iter = waitingpqs.iterator();
+				while(iter.hasNext()){
+				//for (ThreadQueue queue : waitingpqs) {
 					//System.out.println("  update " + queue);
+					queue = (PriorityQueue) iter.next();
 					queue.updateWaitingThread(this);
 					//System.out.println("    done");
 					
@@ -380,8 +387,12 @@ public class PriorityScheduler extends Scheduler {
 		 * @return the effective priority of the associated thread.
 		 */
 		public int calculateEffectivePriority() {
+			PriorityQueue queue;
 			int max = priority;
-			for (PriorityQueue queue : acquiredpqs) {
+			Iterator<ThreadQueue> iter = acquiredpqs.iterator();
+			while(iter.hasNext()){
+			//for (ThreadQueue queue : acquiredpqs) {
+				queue = (PriorityQueue) iter.next();
 				max = Math.max(max, queue.getMax());
 			}
 			return max;
@@ -414,7 +425,7 @@ public class PriorityScheduler extends Scheduler {
 		 * 
 		 * @see nachos.threads.ThreadQueue#waitForAccess
 		 */
-		public void waitForAccess(PriorityQueue waitQueue) {
+		public void waitForAccess(ThreadQueue waitQueue) {
 			waitingpqs.add(waitQueue);
 		}
 
@@ -428,16 +439,17 @@ public class PriorityScheduler extends Scheduler {
 		 * @see nachos.threads.ThreadQueue#acquire
 		 * @see nachos.threads.ThreadQueue#nextThread
 		 */
-		public void acquire(PriorityQueue waitQueue) {
+		public void acquire(ThreadQueue waitQueue) {
 			waitingpqs.remove(waitQueue);
 			acquiredpqs.add(waitQueue);
 			effectivePriorityUpdated();
 		}
 
-		public void unacquire(PriorityQueue noQueue) {
+		public void unacquire(ThreadQueue noQueue) {
 			acquiredpqs.remove(noQueue);
 			effectivePriorityUpdated();
 		}
+		
 	}
 
 	public class ThreadWaiter implements Comparable<ThreadWaiter> {
@@ -479,5 +491,6 @@ public class PriorityScheduler extends Scheduler {
 		public String toString() {
 			return this.state.thread.toString();
 		}
+		
 	}
 }
