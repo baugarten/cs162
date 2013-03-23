@@ -575,24 +575,24 @@ public class UserProcess {
                         return -1;
                 }
                 //get the child process from our hashmap
-                childProcess childProcess;
+                childProcess childData;
                 if(map.containsKey(pid)){
-                        childProcess = map.get(pid);
+                	childData = map.get(pid);
                 }
                 else{
                         return -1;
                 }
 
                 //join it
-                childProcess.child.thread.join();
+                childData.child.thread.join();
                 
                 //remove from hashmap
                 map.remove(pid);
 
                 //write the exit # to the address status
-                if(childProcess.status!=-999){
+                if(childData.status!=-999){
                         byte exitStatus[] = new byte[4];
-                        exitStatus=Lib.bytesFromInt(childProcess.status);
+                        exitStatus=Lib.bytesFromInt(childData.status);
                         int byteTransfered=writeVirtualMemory(status,exitStatus);
 
                         if(byteTransfered == 4){
@@ -625,6 +625,7 @@ public class UserProcess {
                 
                 else{
                         KThread.finish();
+                    	Lib.assertNotReached();
                 }
         }
 
