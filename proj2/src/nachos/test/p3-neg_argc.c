@@ -20,9 +20,23 @@ int main()
     progStr[1] = 0;
 
 	progStr[0] = 2;
+	printf("\nTest negative argc\n", pid);
 	pid = exec(prog, -1, progArgs);
-	printf("\nPID = %d\n", pid);
-    
+	printf("\nPID = %d\n", pid);    
+	rtn = join(pid, &status);
+    printf("\nJoin = %d; returned status = %d\n", rtn, status);
+
+	progArgs[0] = 0;
+	printf("\nTest zero argv\n", pid);
+	pid = exec(prog, -1, progArgs);
+	printf("\nPID = %d\n", pid);    
+	rtn = join(pid, &status);
+    printf("\nJoin = %d; returned status = %d\n", rtn, status);
+
+	progArgs[0] = -128;
+	printf("\nTest negative argv\n", pid);
+	pid = exec(prog, -1, progArgs);
+	printf("\nPID = %d\n", pid);    
 	rtn = join(pid, &status);
     printf("\nJoin = %d; returned status = %d\n", rtn, status);
     

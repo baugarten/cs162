@@ -14,7 +14,7 @@ int main()
     char progStr[2];
 	char *prog = "execersub.coff";
     int pid1;
-    int status;
+    int rtn, status;
 	
     progArgs[0] = progStr;
     
@@ -25,14 +25,14 @@ int main()
 	progStr[0] = 2;
 	pid1 = exec(prog, 1, progArgs);
 	
-	join(pid1, &status);
-    printf("\nJoin 1[%d] %d returnd %d\n", pid1, 1, status);
+	rtn = join(pid1, &status);
+    printf("\n[%d] Join = %d; returned status = %d\n", pid1, rtn, status);
 
-	join(pid1, &status);
-    printf("\nJoin 2[%d] %d returnd %d\n", pid1, 1, status);
+	rtn = join(pid1, &status);
+    printf("\n[%d] Join = %d; returned status = %d\n", pid1, rtn, status);
 
-	join(pid1, &status);
-    printf("\nJoin 3[%d] %d returnd %d\n", pid1, 1, status);
+	rtn = join(pid1, &status);
+    printf("\n[%d] Join = %d; returned status = %d\n", pid1, rtn, status);
     
     printf("\nDone\n");
     
