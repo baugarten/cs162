@@ -30,9 +30,9 @@ public class UserProcess {
         private int process_id;
         
         private UThread thread;
-        private UserProcess parent;
         private HashMap<Integer, childProcess> map;
-
+        private childProcess myChildProcess;
+        
         class childProcess{
                 UserProcess child;
                 int status;
@@ -553,11 +553,12 @@ public class UserProcess {
 
                 }
                 UserProcess child=UserProcess.newUserProcess();
-
+        		childProcess newProcessData = new childProcess(child);
+                child.myChildProcess = newProcessData;
+                
                 if(child.execute(fileName, args)){
-                        child.parent=this;
-                        map.put(child.process_id, new childProcess(child));
-                        return child.process_id;
+                    map.put(child.process_id, newProcessData);
+                    return child.process_id;
                 }
 
                 return -1;
@@ -590,11 +591,11 @@ public class UserProcess {
 
                 //write the exit # to the address status
                 if(childProcess.status!=-999){
-                        byte exitStatus[] =new byte[4];
+                        byte exitStatus[] = new byte[4];
                         exitStatus=Lib.bytesFromInt(childProcess.status);
                         int byteTransfered=writeVirtualMemory(status,exitStatus);
 
-                        if(byteTransfered ==4){
+                        if(byteTransfered == 4){
                                 return 1;
                         }
                         else{
@@ -606,24 +607,14 @@ public class UserProcess {
         }
         
         private void handleExit(int status){
-                UserProcess parentPtr= this.parent;
-                if(parentPtr!=null){
-                        parentPtr.map.get(this.process_id).status=status;
-                        this.parent=null;
-                }
-                
-                
-                //disown all childs
-                for (Map.Entry<Integer, childProcess> entry : map.entrySet()) {
-                        childProcess childProcess=entry.getValue();
-                        childProcess.child.parent=null;
+                if(myChildProcess!=null){
+                	myChildProcess.status = status;
                 }
                 
                 //close all the opened files
                 for (int i=0; i<16; i++) {              
                         handleClose(i);
                 }
-                
                 
                 //part2 implemented
                 this.unloadSections();
