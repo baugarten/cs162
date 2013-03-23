@@ -157,6 +157,7 @@ public class LotteryTest {
 		Machine.interrupt().enable();
 		decreaser.fork();
 		ThreadedKernel.alarm.waitUntil(10000);
+		System.out.println("---------------------------End Test -------------------------");
 	}
 
 	public static void testSimpleDonation() {
