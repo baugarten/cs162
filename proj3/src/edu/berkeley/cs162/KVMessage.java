@@ -31,6 +31,7 @@
 package edu.berkeley.cs162;
 
 import java.io.FilterInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -219,18 +220,21 @@ public class KVMessage {
 					throw new KVException(new KVMessage("resp","Message format incorrect"));
 				}
 				this.key = keyNode.getTextContent();
+				/*
 				if(this.key.length() > 256){
 					throw new KVException(new KVMessage("resp","Oversized key"));
 				}
-				
+				*/
 				valueNode = children.item(1);
 				if(!valueNode.getNodeName().equals("Value")){
-					throw new KVException(new KVMessage("resp","Message incorrect format"));
+					throw new KVException(new KVMessage("resp","Message format incorrect"));
 				}
 				this.value = valueNode.getTextContent();
+				/*
 				if(this.value.length() > 256000){
 					throw new KVException(new KVMessage("resp","Oversized value"));
 				}
+				*/
 			}
 			else {
 				child = children.item(0);
@@ -241,18 +245,21 @@ public class KVMessage {
 					
 					keyNode = child;
 					this.key = keyNode.getTextContent();
+					/*
 					if(this.key.length() > 256){
 						throw new KVException(new KVMessage("resp","Oversized key"));
 					}
-					
+					*/
 					valueNode = children.item(1);
 					if(!valueNode.getNodeName().equals("Value")){
-						throw new KVException(new KVMessage("resp","Message incorrect format"));
+						throw new KVException(new KVMessage("resp","Message format incorrect"));
 					}
 					this.value = valueNode.getTextContent();
+					/*
 					if(this.value.length() > 256000){
 						throw new KVException(new KVMessage("resp","Oversized value"));
 					}
+					*/
 					
 				}
 				else if(child.getNodeName().equals("Message")){
@@ -269,8 +276,10 @@ public class KVMessage {
 			}			
 		} catch (SAXException e){
 			throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
-		} catch (Exception e){
+		} catch (IOException e){
 			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
+		} catch (ClassNotFoundException | ParserConfigurationException e) {
+			throw new KVException(new KVMessage("resp", "Unknown Error: Something is wrong"));
 		} 
 	}
 	
@@ -289,6 +298,7 @@ public class KVMessage {
 			
 			//root element
 			Document doc = docBuilder.newDocument();
+			doc.setXmlStandalone(true);
 			rootEle = doc.createElement("KVMessage");
 			doc.appendChild(rootEle);
 			
@@ -301,9 +311,6 @@ public class KVMessage {
 					throw new KVException(
 							new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
 				}
-				if(key.length() > 256){
-					throw new KVException(new KVMessage("resp","Oversized key"));
-				}
 				keyEle = doc.createElement("Key");
 				keyEle.appendChild(doc.createTextNode(key));
 				rootEle.appendChild(keyEle);
@@ -313,9 +320,14 @@ public class KVMessage {
 						throw new KVException(
 								new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
 					}
-					if(value.length() > 256000){
+					/*
+					if(key.length() > 256){
 						throw new KVException(new KVMessage("resp","Oversized key"));
 					}
+					if(value.length() > 256000){
+						throw new KVException(new KVMessage("resp","Oversized value"));
+					}
+					*/
 					valueEle = doc.createElement("Value");
 					valueEle.appendChild(doc.createTextNode(value));
 					rootEle.appendChild(valueEle);
@@ -330,6 +342,7 @@ public class KVMessage {
 				rootEle.appendChild(msgEle);
 			}
 			
+			//convert the DOM to a string and return that string
 			StringWriter stringWriter = new StringWriter();
 			Transformer transformer = TransformerFactory.newInstance().newTransformer();
 			transformer.transform(new DOMSource(doc), new StreamResult(stringWriter));
