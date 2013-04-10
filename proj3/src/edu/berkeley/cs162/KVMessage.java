@@ -155,14 +155,15 @@ public class KVMessage {
      * c. "Message format incorrect" - if there message does not conform to the required specifications. Examples include incorrect message type. 
      */
 	public KVMessage(InputStream input) throws KVException {
-		
-		ObjectInputStream in;
+		NoCloseInputStream noCloseStream;
+		ObjectInputStream in = null;
 		String attr, temp;
 		Node root, keyNode, valueNode, msgNode;
 		NodeList children, keyEle, valueEle, msgEle; 
 		try{
-			//create a DOM from the InputStream input 
-			in = new ObjectInputStream(input);
+			//create a DOM from the InputStream input
+			noCloseStream = new NoCloseInputStream(input);
+			in = new ObjectInputStream(noCloseStream);
 			temp = (String) in.readObject();
 			DocumentBuilderFactory factory = DocumentBuilderFactory
 					.newInstance();
@@ -248,7 +249,14 @@ public class KVMessage {
 			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
 		} catch (ClassNotFoundException | ParserConfigurationException e) {
 			throw new KVException(new KVMessage("resp", "Unknown Error: Something is wrong"));
-		} 
+		} finally {
+			if(in != null){
+				try {
+					in.close();
+				} catch (IOException e) {
+				}
+			}
+		}
 	}
 	
 	/**
@@ -340,16 +348,29 @@ public class KVMessage {
 	}
 	
 	public void sendMessage(Socket sock) throws KVException {
-
+		ObjectOutputStream out = null;
 		try {
-			ObjectOutputStream out = new ObjectOutputStream(sock.getOutputStream());
+			out = new ObjectOutputStream(sock.getOutputStream());
 			String temp = toXML();
 			out.writeObject(temp);
+			out.close();
 		} catch (KVException e){
+			if(out != null){
+				try {
+					out.close();
+				} catch (IOException e1) {
+				}
+			}
 			throw e;
 		}
 		catch (Exception e){
+			if(out != null){
+				try{
+					out.close();
+				} catch (IOException e2){
+				}
+			}
 			throw new KVException(new KVMessage("resp","Network Error: Could not send data"));
-		}
+		} 
 	}
 }
