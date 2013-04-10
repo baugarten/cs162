@@ -1,24 +1,61 @@
 package edu.berkeley.cs162;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
-import org.junit.After;
+import java.io.IOException;
+import java.io.PipedInputStream;
+import java.net.Socket;
+
 import org.junit.Before;
 import org.junit.Test;
 
 public class KVMessageSendMessageTest {
 
+	private KVMessage kvMessage, received;
+	private PipedInputStream in;
+	private StubSocket socket;
+	
 	@Before
-	public void setUp() throws Exception {
+	public void setUp(){
+		in = new PipedInputStream();
+		try {
+			socket = new StubSocket(in);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 	}
-
-	@After
-	public void tearDown() throws Exception {
-	}
-
+	
 	@Test
-	public void testSendMessage() {
-		fail("Not yet implemented");
+	public void testSendMessage(){
+		try {
+			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
+			request += "<KVMessage type=\"getreq\"><Key>Cal</Key></KVMessage>";
+			kvMessage = new KVMessage("getreq");
+			kvMessage.setKey("Cal");
+			kvMessage.sendMessage(socket);
+			received = new KVMessage(in);
+			assertEquals(request,received.toXML());
+			socket.close();
+		} catch (Exception e) {
+
+		}
+	}
+	
+	//Error: can not send with closed socket
+	@Test
+	public void testSendMessageWithClosedSocket() throws IOException{
+		try{
+			Socket closeSocket = new Socket();
+			closeSocket.close();
+			kvMessage = new KVMessage("getreq");
+			kvMessage.setKey("Cal");
+			kvMessage.sendMessage(closeSocket);
+		} catch (KVException e){
+			assertEquals("resp",e.getMsg().getMsgType());
+			assertEquals("Network Error: Could not send data",e.getMsg().getMessage());
+		}
 	}
 
 }

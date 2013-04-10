@@ -112,37 +112,23 @@ public class KVMessageInputStreamTest {
 		}
 	}
 	
-	//Error: Has value node in a getreq
-	@Test
-	public void testKVMessageInputStreamBadXMLFormat2() throws IOException {
-		try {
-			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
-			request += "<KVMessage type=\"getreq\"><Key>Cal</Key><Value></Value></KVMessage>";
-			out.writeObject(request);
-			kvMessage = new KVMessage(pipedIn);
-		} catch (KVException e){
-			assertEquals("resp", e.getMsg().getMsgType());
-			assertEquals("Message format incorrect", e.getMsg().getMessage());
-		}
-	}
-	
 	//Error: No value node in a putreq
 	@Test
-	public void testKVMessageInputStreamBadXMLFormat3() throws IOException {
+	public void testKVMessageInputStreamBadXMLFormat2() throws IOException {
 		try {
 			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 			request += "<KVMessage type=\"putreq\"><Key>Cal</Key></KVMessage>";
 			out.writeObject(request);
 			kvMessage = new KVMessage(pipedIn);
-		} catch (KVException e){
+		} catch (KVException e) {
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals("Message format incorrect", e.getMsg().getMessage());
 		}
 	}
-	
+
 	//Error: Value node's name is invalid
 	@Test
-	public void testKVMessageInputStreamBadXMLFormat4() throws IOException {
+	public void testKVMessageInputStreamBadXMLFormat3() throws IOException {
 		try {
 			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 			request += "<KVMessage type=\"putreq\"><Key>Cal</Key><Val>Bear</Val></KVMessage>";
@@ -153,27 +139,13 @@ public class KVMessageInputStreamTest {
 			assertEquals("Message format incorrect", e.getMsg().getMessage());
 		}
 	}
-	
+
 	//Error: Missing value node in a getreq response
 	@Test
-	public void testKVMessageInputStreamBadXMLFormat5() throws IOException {
+	public void testKVMessageInputStreamBadXMLFormat4() throws IOException {
 		try {
 			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
-			request += "<KV type=\"resp\"><Key>Cal</Key></KV>";
-			out.writeObject(request);
-			kvMessage = new KVMessage(pipedIn);
-		} catch (KVException e){
-			assertEquals("resp", e.getMsg().getMsgType());
-			assertEquals("Message format incorrect", e.getMsg().getMessage());
-		}
-	}
-	
-	//Error: Has more than one message in other kinds of response
-	@Test
-	public void testKVMessageInputStreamBadXMLFormat6() throws IOException {
-		try {
-			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
-			request += "<KV type=\"resp\"><Message>message1</Message><Message>message2</Message></KV>";
+			request += "<KVMessage type=\"resp\"><Key>Cal</Key></KVMessage>";
 			out.writeObject(request);
 			kvMessage = new KVMessage(pipedIn);
 		} catch (KVException e){
@@ -182,4 +154,63 @@ public class KVMessageInputStreamTest {
 		}
 	}
 
+	//Error: Has more than one message in other kinds of response
+	@Test
+	public void testKVMessageInputStreamBadXMLFormat5() throws IOException {
+		try {
+			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
+			request += "<KVMessage type=\"resp\"><Message>message1</Message><Message>message2</Message></KVMessage>";
+			out.writeObject(request);
+			kvMessage = new KVMessage(pipedIn);
+		} catch (KVException e){
+			assertEquals("resp", e.getMsg().getMsgType());
+			assertEquals("Message format incorrect", e.getMsg().getMessage());
+		}
+	}
+
+	//Error: Has key node in error or success response
+	@Test
+	public void testKVMessageInputStreamBadXMLFormat6() throws IOException {
+		try {
+			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
+			request += "<KVMessage type=\"resp\"><Key>Cal</Key><Message>Success</Message></KVMessage>";
+			out.writeObject(request);
+			kvMessage = new KVMessage(pipedIn);
+		} catch (KVException e){
+			assertEquals("resp", e.getMsg().getMsgType());
+			assertEquals("Message format incorrect", e.getMsg().getMessage());
+		}
+	}
+	
+	//Ignore the extra value node in a getreq
+	@Test
+	public void testKVMessageInputStreamOkToIgnore1() throws IOException {
+		try {
+			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
+			request += "<KVMessage type=\"getreq\"><Key>Cal</Key><Value></Value></KVMessage>";
+			out.writeObject(request);
+			kvMessage = new KVMessage(pipedIn);
+			assertEquals("getreq",kvMessage.getMsgType());
+			assertEquals("Cal",kvMessage.getKey());
+			assertEquals(null,kvMessage.getValue());
+			assertEquals(null,kvMessage.getMessage());
+		} catch (KVException e){
+		}
+	}
+	
+	//Ignore the extra value node, message node, and garbage node in a delreq
+	@Test
+	public void testKVMessageInputStreamOkToIgnore2() throws IOException {
+		try {
+			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
+			request += "<KVMessage type=\"delreq\"><Key>Cal</Key><Value>Bear</Value><Message>Golden</Message><Booo>Stanford</Booo></KVMessage>";
+			out.writeObject(request);
+			kvMessage = new KVMessage(pipedIn);
+			assertEquals("delreq",kvMessage.getMsgType());
+			assertEquals("Cal",kvMessage.getKey());
+			assertEquals(null,kvMessage.getValue());
+			assertEquals(null,kvMessage.getMessage());
+		} catch (KVException e){
+		}
+	}	
 }

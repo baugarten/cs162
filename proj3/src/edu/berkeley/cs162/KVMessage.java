@@ -68,9 +68,8 @@ public class KVMessage {
 	private String msgType = null;
 	private String key = null;
 	private String value = null;
-	private String status = null;
 	private String message = null;
-	private String xml = null;
+	
 	
 	private static void fillSet(Set<String> set){
 		set.add("getreq");
@@ -100,14 +99,6 @@ public class KVMessage {
 
 	public final void setValue(String value) {
 		this.value = value;
-	}
-
-	public final String getStatus() {
-		return status;
-	}
-
-	public final void setStatus(String status) {
-		this.status = status;
 	}
 
 	public final String getMessage() {
@@ -167,7 +158,8 @@ public class KVMessage {
 		
 		ObjectInputStream in;
 		String attr, temp;
-		Node root, keyNode, valueNode, msgNode, child;
+		Node root, keyNode, valueNode, msgNode;
+		NodeList children, keyEle, valueEle, msgEle; 
 		try{
 			//create a DOM from the InputStream input 
 			in = new ObjectInputStream(input);
@@ -181,7 +173,7 @@ public class KVMessage {
 			//Parse the DOM and set appropriate variables
 			//The rootElement is KVMessage
 			NodeList nList = document.getElementsByTagName("KVMessage");
-			if (nList.getLength() == 0){
+			if (nList.getLength() != 1){
 				throw new KVException(new KVMessage("resp","Message format incorrect"));
 			}			
 			root = nList.item(0);
@@ -195,85 +187,61 @@ public class KVMessage {
 				throw new KVException(new KVMessage("resp","Message format incorrect"));
 			}
 			attr = attributes.item(0).getNodeValue();
+			if(!typeSet.contains(attr)){
+				throw new KVException(new KVMessage("resp","Message format incorrect"));
+			}
 			this.msgType = attr;
 			
-			//Get the key, value, and message
-			NodeList children = root.getChildNodes();
-			if(attr.equals("getreq") || attr.equals("delreq")){
+			//Get the key, value, and message	
+			if(attr.equals("getreq") || attr.equals("delreq") || attr.equals("putreq")){
+				children = document.getElementsByTagName("Key");
 				if(children.getLength() != 1){
 					throw new KVException(new KVMessage("resp","Message format incorrect"));
 				}
-				
 				keyNode = children.item(0);
-				if(!keyNode.getNodeName().equals("Key")){
-				    throw new KVException(new KVMessage("resp","Message format incorrect"));
-				}
 				this.key = keyNode.getTextContent();
-			}
-			else if (attr.equals("putreq")){
-				if(children.getLength() != 2){
-					throw new KVException(new KVMessage("resp","Message format incorrect"));
-				}
 				
-				keyNode = children.item(0);
-				if(!keyNode.getNodeName().equals("Key")){
-					throw new KVException(new KVMessage("resp","Message format incorrect"));
-				}
-				this.key = keyNode.getTextContent();
-				/*
-				if(this.key.length() > 256){
-					throw new KVException(new KVMessage("resp","Oversized key"));
-				}
-				*/
-				valueNode = children.item(1);
-				if(!valueNode.getNodeName().equals("Value")){
-					throw new KVException(new KVMessage("resp","Message format incorrect"));
-				}
-				this.value = valueNode.getTextContent();
-				/*
-				if(this.value.length() > 256000){
-					throw new KVException(new KVMessage("resp","Oversized value"));
-				}
-				*/
-			}
-			else {
-				child = children.item(0);
-				if(child.getNodeName().equals("Key")){
-					if(children.getLength() != 2){
-						throw new KVException(new KVMessage("resp","Message format incorrect"));
-					}
-					
-					keyNode = child;
-					this.key = keyNode.getTextContent();
-					/*
+				if(attr.equals("putreq")){
 					if(this.key.length() > 256){
 						throw new KVException(new KVMessage("resp","Oversized key"));
 					}
-					*/
-					valueNode = children.item(1);
-					if(!valueNode.getNodeName().equals("Value")){
-						throw new KVException(new KVMessage("resp","Message format incorrect"));
-					}
-					this.value = valueNode.getTextContent();
-					/*
-					if(this.value.length() > 256000){
-						throw new KVException(new KVMessage("resp","Oversized value"));
-					}
-					*/
-					
-				}
-				else if(child.getNodeName().equals("Message")){
+					children = document.getElementsByTagName("Value");
 					if(children.getLength() != 1){
 						throw new KVException(new KVMessage("resp","Message format incorrect"));
 					}
+					valueNode = children.item(0);
+					this.value = valueNode.getTextContent();
+					if(this.value.length() > 256000){
+						throw new KVException(new KVMessage("resp","Oversized value"));
+					}
+				}
+			}
+			else {
+				keyEle = document.getElementsByTagName("Key");
+				valueEle = document.getElementsByTagName("Value");
+				msgEle = document.getElementsByTagName("Message");
+				
+				if(keyEle.getLength() == 1 && valueEle.getLength() == 1 && msgEle.getLength() == 0){
+					keyNode = keyEle.item(0);
+					this.key = keyNode.getTextContent();
+					if(this.key.length() > 256){
+						throw new KVException(new KVMessage("resp","Oversized key"));
+					}
 					
-					msgNode = children.item(0);
+					valueNode = valueEle.item(0);
+					this.value = valueNode.getTextContent();
+					if(this.value.length() > 256000){
+						throw new KVException(new KVMessage("resp","Oversized value"));
+					}
+				}
+				else if (keyEle.getLength() == 0 && valueEle.getLength() == 0 && msgEle.getLength() == 1){
+					msgNode = msgEle.item(0);
 					this.message = msgNode.getTextContent();
 				}
-				else{
+				else {
 					throw new KVException(new KVMessage("resp","Message format incorrect"));
 				}
-			}			
+			}	
 		} catch (SAXException e){
 			throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
 		} catch (IOException e){
@@ -320,33 +288,46 @@ public class KVMessage {
 						throw new KVException(
 								new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
 					}
-					/*
+					
 					if(key.length() > 256){
 						throw new KVException(new KVMessage("resp","Oversized key"));
 					}
 					if(value.length() > 256000){
 						throw new KVException(new KVMessage("resp","Oversized value"));
 					}
-					*/
+					
 					valueEle = doc.createElement("Value");
 					valueEle.appendChild(doc.createTextNode(value));
 					rootEle.appendChild(valueEle);
 				}
 			} else {
-				if(message == null){
-					throw new KVException(
-							new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
+				if(key != null && value != null && message == null){
+					
+					keyEle = doc.createElement("Key");
+					keyEle.appendChild(doc.createTextNode(key));
+					rootEle.appendChild(keyEle);
+
+					valueEle = doc.createElement("Value");
+					valueEle.appendChild(doc.createTextNode(value));
+					rootEle.appendChild(valueEle);
+					
 				}
-				msgEle = doc.createElement("Message");
-				msgEle.appendChild(doc.createTextNode(message));
-				rootEle.appendChild(msgEle);
+				else if(message != null && key == null && value == null){
+					msgEle = doc.createElement("Message");
+					msgEle.appendChild(doc.createTextNode(message));
+					rootEle.appendChild(msgEle);
+				}
+				else {
+					throw new KVException(
+						new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
+				}
 			}
 			
 			//convert the DOM to a string and return that string
 			StringWriter stringWriter = new StringWriter();
 			Transformer transformer = TransformerFactory.newInstance().newTransformer();
 			transformer.transform(new DOMSource(doc), new StreamResult(stringWriter));
-			xml = stringWriter.toString();
+			String xml = stringWriter.toString();
 			return xml;
 			
 		} catch (ParserConfigurationException pce){
