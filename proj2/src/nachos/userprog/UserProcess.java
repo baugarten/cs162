@@ -30,9 +30,9 @@ public class UserProcess {
         private int process_id;
         
         private UThread thread;
-        private UserProcess parent;
         private HashMap<Integer, childProcess> map;
-
+        private childProcess myChildProcess;
+        
         class childProcess{
                 UserProcess child;
                 int status;
@@ -58,8 +58,8 @@ public class UserProcess {
         
 		openfiles = new HashMap<Integer, OpenFile>();
 		available_descriptors = new ArrayList<Integer>(Arrays.asList(2,3,4,5,6,7,8,9,10,11,12,13,14,15));
-		openfiles.put(0, UserKernel.console.openForWriting());
-		openfiles.put(1, UserKernel.console.openForReading());
+		openfiles.put(0, UserKernel.console.openForReading());
+		openfiles.put(1, UserKernel.console.openForWriting());
     }
     
     /**
@@ -188,6 +188,7 @@ public class UserProcess {
         	System.arraycopy(memory, physAddr, data, offset, transferLength);
         	vaddr += transferLength;
         	offset += transferLength;
+        	length -= transferLength;
         	transferred += transferLength;
         }
         
@@ -250,6 +251,7 @@ public class UserProcess {
         	System.arraycopy(data, offset, memory, physAddr, transferLength);
         	vaddr += transferLength;
         	offset += transferLength;
+        	length -= transferLength;
         	transferred += transferLength;
         }
         
@@ -362,10 +364,14 @@ public class UserProcess {
         for (int i=0; i<numPages; i++) {
         	int physPage = UserKernel.allocatePage();
         	if (physPage < 0) {
+        		Lib.debug(dbgProcess, "\tunable to allocate pages; tried " + numPages + ", did " + i );
         		for (int j=0; j<i; j++) {
-        			UserKernel.deallocatePage(pageTable[j].ppn);
-        			pageTable[j].valid = false;
+        			if (pageTable[j].valid) {
+        				UserKernel.deallocatePage(pageTable[j].ppn);
+        				pageTable[j].valid = false;
+        			}
         		}
+        		coff.close();
         		return false;
         	}
         	pageTable[i] = new TranslationEntry(
@@ -384,13 +390,14 @@ public class UserProcess {
 
                 // for now, just assume virtual addresses=physical addresses
                 int ppn = pageTable[vpn].ppn;
-                section.loadPage(vpn, ppn);
+                section.loadPage(i, ppn);
                 if (section.isReadOnly()) {
                 	pageTable[vpn].readOnly = true;
                 }
             }
         }
         
+        coff.close();
         return true;
     }
 
@@ -546,11 +553,12 @@ public class UserProcess {
 
                 }
                 UserProcess child=UserProcess.newUserProcess();
-
+        		childProcess newProcessData = new childProcess(child);
+                child.myChildProcess = newProcessData;
+                
                 if(child.execute(fileName, args)){
-                        child.parent=this;
-                        map.put(child.process_id, new childProcess(child));
-                        return child.process_id;
+                    map.put(child.process_id, newProcessData);
+                    return child.process_id;
                 }
 
                 return -1;
@@ -567,27 +575,27 @@ public class UserProcess {
                         return -1;
                 }
                 //get the child process from our hashmap
-                childProcess childProcess;
+                childProcess childData;
                 if(map.containsKey(pid)){
-                        childProcess = map.get(pid);
+                	childData = map.get(pid);
                 }
                 else{
                         return -1;
                 }
 
                 //join it
-                childProcess.child.thread.join();
+                childData.child.thread.join();
                 
                 //remove from hashmap
                 map.remove(pid);
 
                 //write the exit # to the address status
-                if(childProcess.status!=-999){
-                        byte exitStatus[] =new byte[4];
-                        exitStatus=Lib.bytesFromInt(childProcess.status);
+                if(childData.status!=-999){
+                        byte exitStatus[] = new byte[4];
+                        exitStatus=Lib.bytesFromInt(childData.status);
                         int byteTransfered=writeVirtualMemory(status,exitStatus);
 
-                        if(byteTransfered ==4){
+                        if(byteTransfered == 4){
                                 return 1;
                         }
                         else{
@@ -599,24 +607,14 @@ public class UserProcess {
         }
         
         private void handleExit(int status){
-                UserProcess parentPtr= this.parent;
-                if(parentPtr!=null){
-                        parentPtr.map.get(this.process_id).status=status;
-                        this.parent=null;
-                }
-                
-                
-                //disown all childs
-                for (Map.Entry<Integer, childProcess> entry : map.entrySet()) {
-                        childProcess childProcess=entry.getValue();
-                        childProcess.child.parent=null;
+                if(myChildProcess!=null){
+                	myChildProcess.status = status;
                 }
                 
                 //close all the opened files
                 for (int i=0; i<16; i++) {              
                         handleClose(i);
                 }
-                
                 
                 //part2 implemented
                 this.unloadSections();
@@ -627,6 +625,7 @@ public class UserProcess {
                 
                 else{
                         KThread.finish();
+                    	Lib.assertNotReached();
                 }
         }
 
@@ -754,6 +753,7 @@ public class UserProcess {
         default:
             Lib.debug(dbgProcess, "Unexpected exception: " +
                       Processor.exceptionNames[cause]);
+            handleExit(-1);
             Lib.assertNotReached("Unexpected exception");
         }
     }
