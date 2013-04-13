@@ -56,8 +56,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
+import org.xml.sax.*;
 
 
 /**
@@ -247,7 +246,7 @@ public class KVMessage {
 			throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
 		} catch (IOException e){
 			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
-		} catch (ClassNotFoundException | ParserConfigurationException e) {
+		} catch (ParserConfigurationException | ClassNotFoundException e) {
 			throw new KVException(new KVMessage("resp", "Unknown Error: Something is wrong"));
 		} finally {
 			if(in != null){

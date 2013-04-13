@@ -1,6 +1,6 @@
 package edu.berkeley.cs162;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 import java.io.IOException;
 import java.io.PipedInputStream;
@@ -21,7 +21,6 @@ public class KVMessageSendMessageTest {
 		try {
 			socket = new StubSocket(in);
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		
@@ -39,7 +38,7 @@ public class KVMessageSendMessageTest {
 			assertEquals(request,received.toXML());
 			socket.close();
 		} catch (Exception e) {
-
+			fail();
 		}
 	}
 	
@@ -52,6 +51,7 @@ public class KVMessageSendMessageTest {
 			kvMessage = new KVMessage("getreq");
 			kvMessage.setKey("Cal");
 			kvMessage.sendMessage(closeSocket);
+			fail();
 		} catch (KVException e){
 			assertEquals("resp",e.getMsg().getMsgType());
 			assertEquals("Network Error: Could not send data",e.getMsg().getMessage());

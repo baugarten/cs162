@@ -11,6 +11,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+
+//import edu.berkeley.cs162.KVMessage.NoCloseInputStream;
+
 public class KVMessageInputStreamTest {
 
 	private KVMessage kvMessage;
@@ -60,7 +63,6 @@ public class KVMessageInputStreamTest {
 		kvMessage = new KVMessage(pipedIn);
 		assertEquals("delreq", kvMessage.getMsgType());
 		assertEquals("Cal", kvMessage.getKey());
-		
 	}
 	
 	@Test
@@ -84,18 +86,20 @@ public class KVMessageInputStreamTest {
 		assertEquals("Success", kvMessage.getMessage());
 	}
 	
+	//Error: unparseable XML
 	@Test
 	public void testKVMessageInputStreamBadXML() throws IOException {
 		try {
-			String request = "<?l version=\"1.0\" encoding=\"UTF-8\"?>";
+			String request = "< version=\"1.0\" encoding=\"UTF-8\"?>";
 			request += "<KVMessage type=\"getreq\"><Key>Cal</Key></KVMessage>";
 			out.writeObject(request);
 			kvMessage = new KVMessage(pipedIn);
+			fail();
 		} catch (KVException e) {
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals("XML Error: Received unparseable message", e.getMsg()
 					.getMessage());
-		}
+		}  
 	}
 	
 	//Error: Root node's name is invalid
@@ -106,11 +110,13 @@ public class KVMessageInputStreamTest {
 			request += "<KV type=\"getreq\"><Key>Cal</Key></KV>";
 			out.writeObject(request);
 			kvMessage = new KVMessage(pipedIn);
+			fail();
 		} catch (KVException e){
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals("Message format incorrect", e.getMsg().getMessage());
 		}
 	}
+	
 	
 	//Error: No value node in a putreq
 	@Test
@@ -120,6 +126,7 @@ public class KVMessageInputStreamTest {
 			request += "<KVMessage type=\"putreq\"><Key>Cal</Key></KVMessage>";
 			out.writeObject(request);
 			kvMessage = new KVMessage(pipedIn);
+			fail();
 		} catch (KVException e) {
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals("Message format incorrect", e.getMsg().getMessage());
@@ -134,6 +141,7 @@ public class KVMessageInputStreamTest {
 			request += "<KVMessage type=\"putreq\"><Key>Cal</Key><Val>Bear</Val></KVMessage>";
 			out.writeObject(request);
 			kvMessage = new KVMessage(pipedIn);
+			fail();
 		} catch (KVException e){
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals("Message format incorrect", e.getMsg().getMessage());
@@ -148,6 +156,7 @@ public class KVMessageInputStreamTest {
 			request += "<KVMessage type=\"resp\"><Key>Cal</Key></KVMessage>";
 			out.writeObject(request);
 			kvMessage = new KVMessage(pipedIn);
+			fail();
 		} catch (KVException e){
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals("Message format incorrect", e.getMsg().getMessage());
@@ -162,6 +171,7 @@ public class KVMessageInputStreamTest {
 			request += "<KVMessage type=\"resp\"><Message>message1</Message><Message>message2</Message></KVMessage>";
 			out.writeObject(request);
 			kvMessage = new KVMessage(pipedIn);
+			fail();
 		} catch (KVException e){
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals("Message format incorrect", e.getMsg().getMessage());
@@ -176,6 +186,7 @@ public class KVMessageInputStreamTest {
 			request += "<KVMessage type=\"resp\"><Key>Cal</Key><Message>Success</Message></KVMessage>";
 			out.writeObject(request);
 			kvMessage = new KVMessage(pipedIn);
+			fail();
 		} catch (KVException e){
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals("Message format incorrect", e.getMsg().getMessage());
@@ -195,6 +206,7 @@ public class KVMessageInputStreamTest {
 			assertEquals(null,kvMessage.getValue());
 			assertEquals(null,kvMessage.getMessage());
 		} catch (KVException e){
+			fail();
 		}
 	}
 	
@@ -211,6 +223,7 @@ public class KVMessageInputStreamTest {
 			assertEquals(null,kvMessage.getValue());
 			assertEquals(null,kvMessage.getMessage());
 		} catch (KVException e){
+			fail();
 		}
 	}	
 }

@@ -23,6 +23,7 @@ public class KVMessageStringStringTest {
 		String msgType = "Hello";
 		String message = "Success";
 		kvMessage = new KVMessage(msgType,message);
+		fail();
 	}
 
 }

@@ -78,6 +78,7 @@ public class KVMessageToXMLTest {
 			kvMessage = new KVMessage("getreq");
 			kvMessage.setKey(null);
 			kvMessage.toXML();
+			fail();
 		} catch (KVException e){
 			assertEquals("resp",e.getMsg().getMsgType());
 			assertEquals("Unknown Error: Not enough data available to generate a valid XML message",e.getMsg().getMessage());
@@ -91,6 +92,7 @@ public class KVMessageToXMLTest {
 			kvMessage = new KVMessage("putreq");
 			kvMessage.setKey("Cal");
 			kvMessage.toXML();
+			fail();
 		} catch (KVException e) {
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals(
@@ -105,6 +107,7 @@ public class KVMessageToXMLTest {
 		try {
 			kvMessage = new KVMessage("delreq");
 			kvMessage.toXML();
+			fail();
 		} catch (KVException e) {
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals(
@@ -120,6 +123,7 @@ public class KVMessageToXMLTest {
 			kvMessage = new KVMessage("resp");
 			kvMessage.setValue("Bear");
 			kvMessage.toXML();
+			fail();
 		} catch (KVException e) {
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals(
@@ -135,6 +139,7 @@ public class KVMessageToXMLTest {
 			kvMessage = new KVMessage("resp");
 			kvMessage.setKey("Cal");
 			kvMessage.toXML();
+			fail();
 		} catch (KVException e) {
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals(
@@ -153,6 +158,7 @@ public class KVMessageToXMLTest {
 			kvMessage.setValue("Bear");
 			kvMessage.setMessage("Golden");
 			kvMessage.toXML();
+			fail();
 		} catch (KVException e) {
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals(
@@ -170,6 +176,7 @@ public class KVMessageToXMLTest {
 			kvMessage.setKey("Cal");
 			kvMessage.setMessage("Success");
 			kvMessage.toXML();
+			fail();
 		} catch (KVException e) {
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals(
@@ -186,6 +193,7 @@ public class KVMessageToXMLTest {
 			kvMessage.setValue("Bear");
 			kvMessage.setMessage("Success");
 			kvMessage.toXML();
+			fail();
 		} catch (KVException e) {
 			assertEquals("resp", e.getMsg().getMsgType());
 			assertEquals(
@@ -206,6 +214,7 @@ public class KVMessageToXMLTest {
 			kvMessage.setKey(key);
 			kvMessage.setValue("Bear");
 			kvMessage.toXML();
+			fail();
 		} catch (KVException e){
 			assertEquals("resp",e.getMsg().getMsgType());
 			assertEquals("Oversized key",e.getMsg().getMessage());
@@ -224,6 +233,7 @@ public class KVMessageToXMLTest {
 			kvMessage.setKey("Cal");
 			kvMessage.setValue(value);
 			kvMessage.toXML();
+			fail();
 		} catch (KVException e){
 			assertEquals("resp",e.getMsg().getMsgType());
 			assertEquals("Oversized value",e.getMsg().getMessage());
