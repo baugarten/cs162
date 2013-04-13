@@ -50,12 +50,31 @@ public class KVCache implements KeyValueInterface {
         
         private List<Set> listSet;
         
+        public List<Set> getListSet(){
+        	return listSet;
+        }
+        
         class Set {
         	private Map<String, Entry> map;
         	private WriteLock writeLock;
         	private List<String> hashKeys;	//record the position of each hashkey
         	private int keysPtr;		//clock hand
         	
+        	public Map<String,Entry> getMap(){
+        		return map;
+        	}
+        	
+        	public WriteLock getWriteLock(){
+        		return writeLock;
+        	}
+        	
+        	public List<String> getHashKeys(){
+        		return hashKeys;
+        	}
+        	
+        	public int getKeysPtr(){
+        		return keysPtr;
+        	}
         	
         	
         	Set(Map<String, Entry> map){
@@ -91,7 +110,7 @@ public class KVCache implements KeyValueInterface {
                 this.numSets = numSets;
                 this.maxElemsPerSet = maxElemsPerSet;     
                 // TODO: Implement Me!
-                listSet= new ArrayList<Set>();
+                this.listSet=new ArrayList<Set>();
                 for (int i=0; i<numSets; i++){
                 	listSet.add(new Set(new HashMap<String, Entry>()));
                 }
@@ -147,9 +166,8 @@ public class KVCache implements KeyValueInterface {
             
             	if (M.size() < maxElemsPerSet || M.containsKey(key)){
             		if (!M.containsKey(key)){
-            			//loop until you find a null node
             			int temp=listKeys.indexOf(null);
-            			listKeys.add(temp,key);
+            			listKeys.set(temp,key);
             		}
             				
             	}
@@ -163,8 +181,9 @@ public class KVCache implements KeyValueInterface {
             			if(entry.used == false){
             				M.remove(tempKey);
             				int tempIndex= listKeys.indexOf(tempKey);
-            				listKeys.set(tempIndex, null);
-            				set.keysPtr =tempIndex++;
+            				listKeys.set(tempIndex, key);
+            				//tempIndex++;
+            				set.keysPtr =++tempIndex%this.maxElemsPerSet;
             				break;
             			}
             			else{
@@ -180,7 +199,7 @@ public class KVCache implements KeyValueInterface {
 	            					
             		}			
             	}
-        	M.put(key, new Entry(value));
+                M.put(key, new Entry(value));
         		
                 // Must be called before returning
                 AutoGrader.agCachePutFinished(key, value);
@@ -230,8 +249,9 @@ public class KVCache implements KeyValueInterface {
                	return Math.abs(key.hashCode()) % numSets;
         }
         
-    public String toXML() {
+	public String toXML() {
         // TODO: Implement Me!
-        return null;
-    }
+	        return null;
+	}
+    
 }
