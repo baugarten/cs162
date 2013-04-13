@@ -30,6 +30,7 @@
  */
 package edu.berkeley.cs162;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -90,6 +91,7 @@ public class KVCache implements KeyValueInterface {
                 this.numSets = numSets;
                 this.maxElemsPerSet = maxElemsPerSet;     
                 // TODO: Implement Me!
+                listSet= new ArrayList<Set>();
                 for (int i=0; i<numSets; i++){
                 	listSet.add(new Set(new HashMap<String, Entry>()));
                 }
