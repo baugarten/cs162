@@ -28,7 +28,7 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package src.edu.berkeley.cs162;
+package edu.berkeley.cs162;
 
 import java.util.HashMap;
 import java.util.LinkedList;
