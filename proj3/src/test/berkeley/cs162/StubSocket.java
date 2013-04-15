@@ -1,4 +1,4 @@
-package edu.berkeley.cs162;
+package test.berkeley.cs162;
 
 import java.io.IOException;
 import java.io.PipedInputStream;
@@ -18,7 +18,12 @@ public class StubSocket extends Socket{
 	}
 	
 	@Override
-	public PipedOutputStream getOutputStream(){
+	public PipedInputStream getInputStream() {
+		return input;
+	}
+	
+	@Override
+	public PipedOutputStream getOutputStream() {
 		return output;
 	}
 	

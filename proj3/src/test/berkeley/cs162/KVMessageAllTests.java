@@ -1,4 +1,4 @@
-package edu.berkeley.cs162;
+package test.berkeley.cs162;
 
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;

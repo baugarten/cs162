@@ -246,7 +246,9 @@ public class KVMessage {
 			throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
 		} catch (IOException e){
 			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
-		} catch (ParserConfigurationException | ClassNotFoundException e) {
+		} catch (ParserConfigurationException e) {
+			throw new KVException(new KVMessage("resp", "Unknown Error: Something is wrong"));
+		} catch (ClassNotFoundException e) {
 			throw new KVException(new KVMessage("resp", "Unknown Error: Something is wrong"));
 		} finally {
 			if(in != null){
@@ -352,7 +354,8 @@ public class KVMessage {
 			out = new ObjectOutputStream(sock.getOutputStream());
 			String temp = toXML();
 			out.writeObject(temp);
-			out.close();
+			out.flush();
+			//out.close();
 		} catch (KVException e){
 			if(out != null){
 				try {
