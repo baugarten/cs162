@@ -135,6 +135,7 @@ public class KVCache implements KeyValueInterface {
             	if (M.containsKey(key)){
             		Entry entry= M.get(key);
             		entry.used=true;
+            		AutoGrader.agCacheGetFinished(key);
             		return entry.value;
             	}
             	
