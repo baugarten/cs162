@@ -194,7 +194,7 @@ public class KVClient implements KeyValueInterface {
 		}
 		
 		// If KVMessage response doesn't have a value of type String, throw KVException with response
-		if ( ! response.getValue().getClass().equals( String.class )) {
+		if ( response.getValue == null) {
 			throw new KVException(response);
 		} 
 		
