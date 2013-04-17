@@ -182,7 +182,7 @@ public class KVClient implements KeyValueInterface {
 			// Get the response from the server
 			response = new KVMessage(socket.getInputStream());
 			closeHost(socket);
-		} catch (SocketException e) {
+		} catch (IOException e) {
 			throw new KVException(new KVMessage("resp", "Unknown Error: " + e.getMessage()));
 		}
 		
@@ -237,7 +237,7 @@ public class KVClient implements KeyValueInterface {
 			// Get response from server
 			KVMessage response = new KVMessage(socket.getInputStream());
 			closeHost(socket);
-		} catch (SocketException e) {
+		} catch (IOException e) {
 			throw new KVException(new KVMessage("resp", "Unknown Error: " + e.getMessage()));
 		}
 
