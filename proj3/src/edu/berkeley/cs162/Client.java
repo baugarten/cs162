@@ -45,11 +45,11 @@ public class Client {
 			String three = "3";
 			String seven = "7";
 			System.out.println("putting (3, 7)");
-			boolean status = kc.put(three, seven);
+		  	kc.put(three, seven);
 			System.out.println("status: " + status);
 
 			System.out.println("putting (3, 7) (again)");
-			status = kc.put(three, seven);
+			kc.put(three, seven);
 			System.out.println("status: " + status);
 			
 			System.out.println("getting key=3");			
