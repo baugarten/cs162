@@ -34,6 +34,7 @@ package edu.berkeley.cs162;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 
 /**
  * This class is used to communicate with (appropriately marshalling and unmarshalling) 
@@ -61,14 +62,14 @@ public class KVClient implements KeyValueInterface {
 		try {
 			Socket socket = new Socket();
 			socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 8080));
-		} catch (IOException|SocketException e) {
+		} catch (IOException e) {
 			throw new KVException(new KVMessage("resp", "Network Error: Could not create socket"));
 		}
 
 		// Connect client to host server on specified address and port
 		try {
 			socket.connect(new InetSocketAddress(this.server, this.port));
-		} catch (IOException|SocketException e) {
+		} catch (IOException e) {
 			throw new KVException(new KVMessage("resp", "Network Error: Could not connect"));
 		}
 		
@@ -80,7 +81,7 @@ public class KVClient implements KeyValueInterface {
 		// Close socket and catch IOException and wrap them in a KVException
 	    try {
 			sock.close();
-	    } catch (IOException|SocketException e) {
+	    } catch (IOException e) {
 	    	throw new KVException(new KVMessage("resp", "Unknown Error: " + e.getMessage()));
 	    }
 	}
@@ -125,7 +126,7 @@ public class KVClient implements KeyValueInterface {
 			// Get response from server
 			KVMessage response = new KVMessage(socket.getInputStream());
 			closeHost(socket);
-		} catch (IOException|SocketException e) {
+		} catch (IOException e) {
 			throw new KVException(new KVMessage("resp", "Unknown Error: " + e.getMessage()));
 		}
 		
@@ -181,7 +182,7 @@ public class KVClient implements KeyValueInterface {
 			// Get the response from the server
 			response = new KVMessage(socket.getInputStream());
 			closeHost(socket);
-		} catch (SocketException|IOException e) {
+		} catch (IOException e) {
 			throw new KVException(new KVMessage("resp", "Unknown Error: " + e.getMessage()));
 		}
 		
@@ -191,8 +192,8 @@ public class KVClient implements KeyValueInterface {
 		}
 		
 		// If KVMessage response doesn't have a value of type String, throw KVException with response
-		if ( ! response.getValue().getClass().equals( String.class ) {
-			throw new KVExcpetion(response);
+		if ( ! response.getValue().getClass().equals( String.class )) {
+			throw new KVException(response);
 		} 
 		
 		return response.getValue();
@@ -236,7 +237,7 @@ public class KVClient implements KeyValueInterface {
 			// Get response from server
 			KVMessage response = new KVMessage(socket.getInputStream());
 			closeHost(socket);
-		} catch (SocketException|IOException e) {
+		} catch (IOException e) {
 			throw new KVException(new KVMessage("resp", "Unknown Error: " + e.getMessage()));
 		}
 
@@ -247,7 +248,7 @@ public class KVClient implements KeyValueInterface {
 		
 		// If KVMessage response isn't successful, throw KVException with response
 		if (! response.getMessage().equals("Success")) {
-			throw new KVExcpetion(response);
+			throw new KVException(response);
 		} 
 		
 		return;
