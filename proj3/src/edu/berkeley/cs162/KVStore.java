@@ -36,6 +36,7 @@ import java.io.*;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
@@ -123,6 +124,7 @@ public class KVStore implements KeyValueInterface {
     		DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
     		DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
     		Document doc = docBuilder.newDocument();
+    		doc.setXmlStandalone(true);
     		
     		// build DOM
     		Element kvStoreNode = doc.createElement("KVStore");
@@ -150,6 +152,7 @@ public class KVStore implements KeyValueInterface {
     		// output to string
     		TransformerFactory transformerFactory = TransformerFactory.newInstance();
     		Transformer transformer = transformerFactory.newTransformer();
+    	    transformer.setOutputProperty(OutputKeys.INDENT, "yes");
     		StringWriter writer = new StringWriter();
     		transformer.transform(new DOMSource(doc), new StreamResult(writer));
     		return writer.getBuffer().toString();
@@ -210,52 +213,50 @@ public class KVStore implements KeyValueInterface {
 	        
 	        Node root = doc.getFirstChild();
 	        if (root.getNodeName() != "KVStore") {
-	        	System.err.println("KVStore::restoreFromString: input DOM structure error.");
+	        	System.err.println("KVStore::restoreFromString: input DOM structure error: root not KVStore");
 	        	return;
 	        }
 	        
-	        Node kvPairNode = root.getFirstChild();
-	        while (kvPairNode != null) {
+	        for (Node kvPairNode=root.getFirstChild(); kvPairNode!=null; kvPairNode=kvPairNode.getNextSibling()) {
 	        	String nodeKey = null, nodeValue = null;
 
-	        	if (kvPairNode.getNodeName() != "KVPair") {
-	        		System.err.println("KVStore::restoreFromString: input DOM structure error.");
+	        	if (kvPairNode.getNodeName().startsWith("#")) {
+	        		continue;
+	        	} else if (kvPairNode.getNodeName() != "KVPair") {
+	        		System.err.println("KVStore::restoreFromString: input DOM structure error: expected KVPair, got " + kvPairNode.getNodeName());
 		        	return;	        		
 	        	}
 	        	
-	        	Node kvAttrNode = kvPairNode.getFirstChild();
-	        	while (kvAttrNode != null) {
+	        	for (Node kvAttrNode=kvPairNode.getFirstChild(); kvAttrNode!=null; kvAttrNode=kvAttrNode.getNextSibling()) {
 	        		String attrType = kvAttrNode.getNodeName();
-	        		if (attrType == "Key") {
+	        		if (attrType.startsWith("#")) {
+	        			continue;
+	        		} else if (attrType == "Key") {
 	        			if (nodeKey != null) {
-	        				System.err.println("KVStore::restoreFromString: input DOM structure error.");
+	        				System.err.println("KVStore::restoreFromString: input DOM structure error: duplicate Key");
 				        	return;	        				
 	        			} else {
 	        				nodeKey = kvAttrNode.getTextContent();
 	        			}
 	        		} else if (attrType == "Value") {
 	        			if (nodeValue != null) {
-	        				System.err.println("KVStore::restoreFromString: input DOM structure error.");
+	        				System.err.println("KVStore::restoreFromString: input DOM structure error: duplicate Value");
 				        	return;	        				
 	        			} else {
 	        				nodeValue = kvAttrNode.getTextContent();
 	        			}
 	        		} else {
-	        			System.err.println("KVStore::restoreFromString: input DOM structure error.");
+	        			System.err.println("KVStore::restoreFromString: input DOM structure error: unexpected KVPair attr");
 			        	return;	        			
 	        		}
-
-	        		kvAttrNode = kvAttrNode.getNextSibling();
 	        	}
 	        	
         		if (nodeKey == null || nodeValue == null) {
-        			System.err.println("KVStore::restoreFromString: input DOM structure error.");
+        			System.err.println("KVStore::restoreFromString: input DOM structure error: missing key or value");
 		        	return;
         		}
         		
         		store.put(nodeKey, nodeValue);
-	        	
-	        	kvPairNode = kvPairNode.getNextSibling();
 	        }
 	        
 	        
