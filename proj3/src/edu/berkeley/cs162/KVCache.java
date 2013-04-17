@@ -281,23 +281,26 @@ public class KVCache implements KeyValueInterface {
     			Set set = listSet.get(setInd);
 
     			for (String hashKey : set.hashKeys) {
-    				if (hashKey == null) {
-    					continue;
+    				Entry entry = set.map.get(hashKey);
+    				Element cacheEntryNode = doc.createElement("CacheEntry");
+        			Element keyNode = doc.createElement("Key");
+        			Element valueNode = doc.createElement("Value");
+
+    				if (hashKey != null && entry != null) {
+        				cacheEntryNode.setAttribute("isReferenced", Boolean.toString(entry.used));
+        				cacheEntryNode.setAttribute("isValid", Boolean.toString(true));
+            			keyNode.setTextContent(hashKey);
+            			valueNode.setTextContent(entry.value);
+    				} else {
+        				cacheEntryNode.setAttribute("isReferenced", Boolean.toString(false));
+        				cacheEntryNode.setAttribute("isValid", Boolean.toString(false));
+            			keyNode.setTextContent("");
+            			valueNode.setTextContent("");
     				}
 
-    				Entry entry = set.map.get(hashKey);
-
-    				Element cacheEntryNode = doc.createElement("CacheEntry");
-    				cacheEntryNode.setAttribute("isReferenced", Boolean.toString(entry.used));
-    				cacheEntryNode.setAttribute("isValid", Boolean.toString(true));
     				setNode.appendChild(cacheEntryNode);
     				
-        			Element keyNode = doc.createElement("Key");
-        			keyNode.setTextContent(hashKey);
         			cacheEntryNode.appendChild(keyNode);
-        			
-        			Element valueNode = doc.createElement("Value");
-        			valueNode.setTextContent(entry.value);
         			cacheEntryNode.appendChild(valueNode);
     			}
     		}
