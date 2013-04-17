@@ -60,17 +60,17 @@ public class KVClient implements KeyValueInterface {
 		
 		Socket socket = null;
 		
-		// Create socket binding to local IP address on port 8080
-		try {
-			socket = new Socket();
-			socket.bind(new InetSocketAddress(InetAddress.getLocalHost().getHostName(), 8080));
-		} catch (IOException e) {
-			throw new KVException(new KVMessage("resp", "Network Error: Could not create socket"));
-		}
+//		// Create socket binding to local IP address on port 8080
+//		try {
+//			socket = new Socket();
+//			socket.bind(new InetSocketAddress(InetAddress.getLocalHost().getHostName(), 8080));
+//		} catch (IOException e) {
+//			throw new KVException(new KVMessage("resp", "Network Error: Could not create socket"));
+//		}
 
 		// Connect client to host server on specified address and port
 		try {
-			socket.connect(new InetSocketAddress(this.server, this.port));
+			socket = new Socket(this.server, this.port);
 		} catch (IOException e) {
 			throw new KVException(new KVMessage("resp", "Network Error: Could not connect"));
 		}
