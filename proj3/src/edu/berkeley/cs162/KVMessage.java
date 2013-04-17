@@ -255,9 +255,12 @@ public class KVMessage {
 			throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
 		} catch (IOException e){
 			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
-		} catch (ParserConfigurationException | ClassNotFoundException e) {
+		} catch (ParserConfigurationException e) {
 			throw new KVException(new KVMessage("resp", "Unknown Error: Something is wrong"));
-		} finally {
+		} catch (ClassNotFoundException e){
+			throw new KVException(new KVMessage("resp","Unknown Error: Something is wrong"));
+		}
+		finally {
 			if(in != null){
 				try {
 					in.close();
