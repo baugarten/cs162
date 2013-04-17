@@ -50,7 +50,7 @@ public class ThreadPool {
 		
 		for (int i = 0; i < size; i++) {
 			threads[i] = new WorkerThread(this);
-			threads[i].run();
+			threads[i].start();
 		}
 	}
 	
