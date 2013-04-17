@@ -45,7 +45,7 @@ public interface KeyValueInterface {
 	 * @return whether a value was overwritten when inserting the new data tuple
 	 * @throws IOException is thrown when there is an error when inserting the entry into the store 
 	 */
-	public boolean put(String key, String value) throws KVException;
+	public void put(String key, String value) throws KVException;
 	
 	/**
 	 * Retrieve the object corresponding to the provided key 

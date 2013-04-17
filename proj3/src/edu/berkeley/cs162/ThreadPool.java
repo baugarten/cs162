@@ -35,6 +35,7 @@ public class ThreadPool {
 	 * Set of threads in the threadpool
 	 */
 	protected Thread threads[] = null;
+	protected Queue<Runnable> jobs = new Queue<Runnable>();
 
 	/**
 	 * Initialize the number of threads required in the threadpool. 
@@ -43,7 +44,20 @@ public class ThreadPool {
 	 */
 	public ThreadPool(int size)
 	{      
-	    // TODO: implement me
+		threads = new Thread[size];
+		
+		for (int i = 0; i < size; i++) {
+			threads[i] = new WorkerThread(this);
+			threads[i].run();
+		}
+	}
+	
+	public int getNumWorkerThreads() {
+		return threads.length;
+	}
+	
+	public int getNumJobs() {
+		return jobs.size();
 	}
 
 	/**
@@ -52,9 +66,12 @@ public class ThreadPool {
 	 * @param r job that has to be executed asynchronously
 	 * @throws InterruptedException 
 	 */
-	public void addToQueue(Runnable r) throws InterruptedException
-	{
-	      // TODO: implement me
+	public synchronized void addToQueue(Runnable r) throws InterruptedException {
+		
+	     jobs.put(r);
+	     this.notify();
+	     
+	     return; 
 	}
 	
 	/** 
@@ -63,8 +80,12 @@ public class ThreadPool {
 	 * @throws InterruptedException 
 	 */
 	public synchronized Runnable getJob() throws InterruptedException {
-	      // TODO: implement me
-	    return null;
+		
+		while (jobs.isEmpty()) {
+			this.wait();
+		}
+		
+	    return jobs.remove();
 	}
 }
 
@@ -72,6 +93,8 @@ public class ThreadPool {
  * The worker threads that make up the thread pool.
  */
 class WorkerThread extends Thread {
+	
+	private ThreadPool pool = null;
 	/**
 	 * The constructor.
 	 * 
@@ -79,7 +102,7 @@ class WorkerThread extends Thread {
 	 */
 	WorkerThread(ThreadPool o)
 	{
-	     // TODO: implement me
+	     pool = o;
 	}
 
 	/**
@@ -87,6 +110,9 @@ class WorkerThread extends Thread {
 	 */
 	public void run()
 	{
-	      // TODO: implement me
+		Runnable new_job = pool.getJob();
+		
+		new_job.run();
+		
 	}
 }
