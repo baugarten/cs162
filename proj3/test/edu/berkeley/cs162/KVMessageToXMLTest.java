@@ -202,6 +202,39 @@ public class KVMessageToXMLTest {
 		}
 	}	
 
+	//Error: key with size 0
+	@Test
+	public void testToXMLNotEnoughData10() {
+		try {
+			kvMessage = new KVMessage("getreq");
+			kvMessage.setKey("");
+			kvMessage.toXML();
+			fail();
+		} catch (KVException e) {
+			assertEquals("resp", e.getMsg().getMsgType());
+			assertEquals(
+					"Undersized key",
+					e.getMsg().getMessage());
+		}
+	}
+	
+	//Error: value with size 0
+	@Test
+	public void testToXMLNotEnoughData11() {
+		try {
+			kvMessage = new KVMessage("putreq");
+			kvMessage.setValue("");
+			kvMessage.setKey("Cal");
+			kvMessage.toXML();
+			fail();
+		} catch (KVException e) {
+			assertEquals("resp", e.getMsg().getMsgType());
+			assertEquals(
+					"Undersized value",
+					e.getMsg().getMessage());
+		}
+	} 
+	
 	//Error: oversized key in putreq
 	@Test
 	public void testToXMLOversizedKey() {

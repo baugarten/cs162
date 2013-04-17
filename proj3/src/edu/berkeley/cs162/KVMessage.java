@@ -201,10 +201,15 @@ public class KVMessage {
 				keyNode = children.item(0);
 				this.key = keyNode.getTextContent();
 				
+				if(key.length() == 0){
+					throw new KVException(new KVMessage("resp", "Undersized key"));
+				} 
+				
 				if(attr.equals("putreq")){
 					if(this.key.length() > 256){
 						throw new KVException(new KVMessage("resp","Oversized key"));
 					}
+					
 					children = document.getElementsByTagName("Value");
 					if(children.getLength() != 1){
 						throw new KVException(new KVMessage("resp","Message format incorrect"));
@@ -213,6 +218,10 @@ public class KVMessage {
 					this.value = valueNode.getTextContent();
 					if(this.value.length() > 256000){
 						throw new KVException(new KVMessage("resp","Oversized value"));
+					}
+					
+					if(this.value.length() == 0){
+						throw new KVException(new KVMessage("resp", "Undersized value"));
 					}
 				}
 			}
@@ -224,13 +233,13 @@ public class KVMessage {
 				if(keyEle.getLength() == 1 && valueEle.getLength() == 1 && msgEle.getLength() == 0){
 					keyNode = keyEle.item(0);
 					this.key = keyNode.getTextContent();
-					if(this.key.length() > 256){
+					if(this.key.length() > 256 || this.key.length() == 0){
 						throw new KVException(new KVMessage("resp","Oversized key"));
 					}
 					
 					valueNode = valueEle.item(0);
 					this.value = valueNode.getTextContent();
-					if(this.value.length() > 256000){
+					if(this.value.length() > 256000 || this.key.length() == 0){
 						throw new KVException(new KVMessage("resp","Oversized value"));
 					}
 				}
@@ -286,6 +295,9 @@ public class KVMessage {
 					throw new KVException(
 							new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
 				}
+				if(key.length() == 0){
+					throw new KVException(new KVMessage("resp", "Undersized key"));
+				}
 				keyEle = doc.createElement("Key");
 				keyEle.appendChild(doc.createTextNode(key));
 				rootEle.appendChild(keyEle);
@@ -299,8 +311,13 @@ public class KVMessage {
 					if(key.length() > 256){
 						throw new KVException(new KVMessage("resp","Oversized key"));
 					}
+
 					if(value.length() > 256000){
 						throw new KVException(new KVMessage("resp","Oversized value"));
+					}
+					
+					if(value.length() == 0){
+						throw new KVException(new KVMessage("resp", "Undersized value"));
 					}
 					
 					valueEle = doc.createElement("Value");
