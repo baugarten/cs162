@@ -67,13 +67,12 @@ public class KVStore implements KeyValueInterface {
 		store = new Hashtable<String, String>();
 	}
 	
-	public boolean put(String key, String value) throws KVException {
+	public void put(String key, String value) throws KVException {
 		AutoGrader.agStorePutStarted(key, value);
 		
 		try {
 			putDelay();
 			store.put(key, value);
-			return false;
 		} finally {
 			AutoGrader.agStorePutFinished(key, value);
 		}
@@ -119,7 +118,7 @@ public class KVStore implements KeyValueInterface {
 		AutoGrader.agStoreDelay();
 	}
 	
-    public String toXML() throws KVException {
+    public String toXML() {
     	try {
     		DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
     		DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
@@ -162,7 +161,7 @@ public class KVStore implements KeyValueInterface {
 		return "";
     }        
 
-    public void dumpToFile(String fileName) throws KVException {
+    public void dumpToFile(String fileName) {
         String xmlContent = toXML();
         
         try {
@@ -175,7 +174,7 @@ public class KVStore implements KeyValueInterface {
         }
     }
     
-    public void restoreFromFile(String fileName) throws KVException{
+    public void restoreFromFile(String fileName) {
     	BufferedReader br = null;
         try {
         	StringBuilder sb = new StringBuilder();
@@ -202,7 +201,7 @@ public class KVStore implements KeyValueInterface {
         }
     }
     
-    public void restoreFromString(String xmlContent) throws KVException {
+    public void restoreFromString(String xmlContent) {
     	try {
 	    	DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
 	        DocumentBuilder docBuilder = docFactory.newDocumentBuilder();

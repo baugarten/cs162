@@ -262,8 +262,8 @@ public class KVCache implements KeyValueInterface {
                	return Math.abs(key.hashCode()) % numSets;
         }
         
-	public String toXML() throws Exception {
-    	//try {
+	public String toXML() {
+    	try {
     		DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
     		DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
     		Document doc = docBuilder.newDocument();
@@ -312,10 +312,10 @@ public class KVCache implements KeyValueInterface {
     		StringWriter writer = new StringWriter();
     		transformer.transform(new DOMSource(doc), new StreamResult(writer));
     		return writer.getBuffer().toString();
-    	//} catch (Exception e) {
-    		//System.err.println("KVCache::toXML: Exception building DOM: " + e);
-    	//}
-		//return "";
+    	} catch (Exception e) {
+    		System.err.println("KVCache::toXML: Exception building DOM: " + e);
+    	}
+		return "";
 	}
     
 }
