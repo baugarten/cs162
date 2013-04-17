@@ -112,9 +112,11 @@ class WorkerThread extends Thread {
 	 */
 	public void run()
 	{
-		Runnable new_job = pool.getJob();
-		
-		new_job.run();
-		
+		try {
+			Runnable new_job = pool.getJob();
+			new_job.run();
+		} catch (InterruptedException) {
+			return;
+		}
 	}
 }
