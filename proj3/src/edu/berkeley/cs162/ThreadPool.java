@@ -30,6 +30,8 @@
  */
 package edu.berkeley.cs162;
 
+import java.util.Queue;
+
 public class ThreadPool {
 	/**
 	 * Set of threads in the threadpool
