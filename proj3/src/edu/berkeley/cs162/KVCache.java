@@ -191,7 +191,7 @@ public class KVCache implements KeyValueInterface {
 	            			entry.used=false;
             			}
             						
-            			if(ptr >= maxElemsPerSet){
+            			if(ptr >= maxElemsPerSet-1){
             				ptr=0;
             			}
             			else{
