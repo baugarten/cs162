@@ -30,14 +30,14 @@
  */
 package edu.berkeley.cs162;
 
-import java.util.Queue;
+import java.util.LinkedList;
 
 public class ThreadPool {
 	/**
 	 * Set of threads in the threadpool
 	 */
 	protected Thread threads[] = null;
-	protected Queue<Runnable> jobs = new Queue<Runnable>();
+	protected LinkedList<Runnable> jobs = new LinkedList<Runnable>();
 
 	/**
 	 * Initialize the number of threads required in the threadpool. 
@@ -70,7 +70,7 @@ public class ThreadPool {
 	 */
 	public synchronized void addToQueue(Runnable r) throws InterruptedException {
 		
-	     jobs.put(r);
+	     jobs.push(r);
 	     this.notify();
 	     
 	     return; 
@@ -83,11 +83,11 @@ public class ThreadPool {
 	 */
 	public synchronized Runnable getJob() throws InterruptedException {
 		
-		while (jobs.isEmpty()) {
+		while (jobs.size() == 0) {
 			this.wait();
 		}
 		
-	    return jobs.remove();
+	    return jobs.pop();
 	}
 }
 

@@ -58,9 +58,11 @@ public class KVClient implements KeyValueInterface {
 	
 	private Socket connectHost() throws KVException {
 		
+		Socket socket = null;
+		
 		// Create socket binding to local IP address on port 8080
 		try {
-			Socket socket = new Socket();
+			socket = new Socket();
 			socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 8080));
 		} catch (IOException e) {
 			throw new KVException(new KVMessage("resp", "Network Error: Could not create socket"));
