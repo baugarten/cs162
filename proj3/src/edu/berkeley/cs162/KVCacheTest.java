@@ -32,6 +32,27 @@ public class KVCacheTest {
 		KVCache.put(key, value);
 		assertEquals(value, cacheMap.get(key).value);
 	}
+	
+	@Test
+	//
+	public void testCacheFull2() {
+		int numberSets=1;
+		int cacheSize=3;
+		String []key={"1","2","3"};
+		String []value={"1st item","2nd item","3rd item"};
+		KVCache KVCache= new KVCache(numberSets,cacheSize);
+		for(int i =0; i<key.length; i++){
+			KVCache.put(key[i],value[i]);
+			KVCache.get(key[i]);
+		}
+		List<Set> listSets= KVCache.getListSet();
+		String key2="dasf";
+		String value2="adfadsfas";
+		KVCache.put(key2, value2);
+		
+		assertEquals(null,KVCache.get(key[0]));
+		
+	}
 
 	@Test
 	//set size =1, cache size =3
