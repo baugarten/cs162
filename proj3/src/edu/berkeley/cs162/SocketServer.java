@@ -31,6 +31,7 @@
 package edu.berkeley.cs162;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 
 /** 
@@ -43,14 +44,19 @@ public class SocketServer {
 	int port;
 	NetworkHandler handler;
 	ServerSocket server;
+	boolean open;
 	
 	public SocketServer(String hostname, int port) {
 		this.hostname = hostname;
 		this.port = port;
+		open = false;
 	}
 	
 	public void connect() throws IOException {
-	      // TODO: implement me
+		if (open) return;
+		server = new ServerSocket();
+		server.bind(new InetSocketAddress(hostname, port));
+		open = true;
 	}
 	
 	/**
@@ -58,7 +64,12 @@ public class SocketServer {
 	 * @throws IOException if there is a network error (for instance if the socket is inadvertently closed) 
 	 */
 	public void run() throws IOException {
-	      // TODO: implement me
+		if (!open) {
+			throw new IOException();
+		}
+		while (open) {
+			handler.handle(server.accept());
+		}
 	}
 	
 	/** 
@@ -73,11 +84,18 @@ public class SocketServer {
 	 * Stop the ServerSocket
 	 */
 	public void stop() {
-	      // TODO: implement me
+		this.open = false;
+		this.closeSocket();
 	}
 	
+	
 	private void closeSocket() {
-	     // TODO: implement me
+		try {
+			server.close();
+			System.out.println("socket closed");
+		} catch (IOException e) {
+			return;
+		}
 	}
 	
 	protected void finalize(){

@@ -62,9 +62,49 @@ public class KVClientHandler implements NetworkHandler {
 		
 		@Override
 		public void run() {
-		     // TODO: Implement Me!
+			System.out.println("Handling");
+			KVMessage message, res;
+			try {
+				message = null;
+				res = new KVMessage("resp");
+			} catch (KVException e) {
+				res = e.getMsg();
+				try {
+					res.sendMessage(client);
+					return;
+				} catch (KVException e1) {
+					return;
+				}
+			}
+			try {
+				message = new KVMessage(client.getInputStream());
+				if ("getreq".equals(message.getMsgType())) {
+					res.setKey(message.getKey());
+					res.setValue(kvServer.get(message.getKey()));
+				} else if ("putreq".equals(message.getMsgType())) {
+					kvServer.put(message.getKey(), message.getValue());
+					res.setMessage("Success");
+				} else if ("delreq".equals(message.getMsgType())) {
+					kvServer.del(message.getKey());
+					res.setMessage("Success");
+				} else {
+					return;
+				}
+				System.out.println(res.getKey());
+				System.out.println(res.getValue());
+			} catch (KVException e) {
+				res = e.getMsg();
+			} catch (IOException e) {
+				res.setMessage("Network Error: Could not receive data");
+			}
+			try {
+				res.sendMessage(client);
+			} catch (KVException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
-		
+
 		public ClientHandler(KVServer kvServer, Socket client) {
 			this.kvServer = kvServer;
 			this.client = client;
