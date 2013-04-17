@@ -225,7 +225,7 @@ public class KVClient implements KeyValueInterface {
 		
 		try {
 			// Connect to server
-			Socket socket = connectHost();
+			socket = connectHost();
 
 			// Initialize a KVMessage of type delreq
 			KVMessage message = new KVMessage("delreq");
