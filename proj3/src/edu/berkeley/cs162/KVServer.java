@@ -62,7 +62,7 @@ public class KVServer implements KeyValueInterface {
 		AutoGrader.registerKVServer(dataStore, dataCache);
 	}
 	
-	public boolean put(final String key, final String value) throws KVException {
+	public void put(String key, String value) throws KVException {
 		// Must be called before anything else
 		AutoGrader.agKVServerPutStarted(key, value);
 
@@ -76,7 +76,6 @@ public class KVServer implements KeyValueInterface {
 
 		// Must be called before returning
 		AutoGrader.agKVServerPutFinished(key, value);
-		return false;
 	}
 	
 	public String get (String key) throws KVException {
