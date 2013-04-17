@@ -298,11 +298,9 @@ public class KThread {
 
 	Lib.assertTrue(this != currentThread);
 	
-	joinLock.acquire();
-	if(status == statusFinished){
-		joinLock.release();
-	}
-	else{
+	
+	if(status != statusFinished){
+		joinLock.acquire();
 		Machine.interrupt().disable();
 		this.joinQueue.waitForAccess(currentThread);
 		Machine.interrupt().enable();
