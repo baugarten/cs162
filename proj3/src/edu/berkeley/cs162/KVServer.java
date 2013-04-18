@@ -50,8 +50,6 @@ public class KVServer implements KeyValueInterface {
 	private static final int MAX_KEY_SIZE = 256;
 	private static final int MAX_VAL_SIZE = 256 * 1024;
 	
-	private static Lock storeLock = new ReentrantLock();
-	
 	/**
 	 * @param numSets number of sets in the data Cache.
 	 */
@@ -66,41 +64,45 @@ public class KVServer implements KeyValueInterface {
 		// Must be called before anything else
 		AutoGrader.agKVServerPutStarted(key, value);
 
-		Lock cacheWriteLock = dataCache.getWriteLock(key);
-		cacheWriteLock.lock();
-		dataCache.put(key, value);
-		storeLock.lock();
-		cacheWriteLock.unlock();
-		dataStore.put(key, value);
-		storeLock.unlock();
+		WriteLock cacheWriteLock = dataCache.getWriteLock(key);
+		try {
+			cacheWriteLock.lock();
+			synchronized(dataStore) {
+				try {
+					dataStore.put(key, value);
+					dataCache.put(key, value);
+				} catch (KVException e) {
+					throw new KVException(new KVMessage("resp", "IO Error"));
+				}
+			}
+		} finally {
+			// Must be called before returning
+			AutoGrader.agKVServerPutFinished(key, value);
+			unlock(cacheWriteLock);
+		}
 
-		// Must be called before returning
-		AutoGrader.agKVServerPutFinished(key, value);
 	}
 	
 	public String get (String key) throws KVException {
 		// Must be called before anything else
 		AutoGrader.agKVServerGetStarted(key);
 
-		
-		Lock cacheWriteLock = dataCache.getWriteLock(key);
-		cacheWriteLock.lock();
-		String result = dataCache.get(key);
-		if (result == null) {
-			storeLock.lock();
-			result = dataStore.get(key);
+		WriteLock cacheWriteLock = dataCache.getWriteLock(key);
+		String result = null;
+		try {
+			cacheWriteLock.lock();
+			result = dataCache.get(key);
 			if (result == null) {
-				cacheWriteLock.unlock();
-				storeLock.unlock();
-				throw new KVException(new KVMessage("resp", "Does not exist"));
+				synchronized (dataStore) {
+					result = storeGet(key);
+					dataCache.put(key, result);
+				}
 			}
-			dataCache.put(key, result);
-			storeLock.unlock();
+		} finally {
+			// Must be called before returning
+			AutoGrader.agKVServerGetFinished(key);
+			unlock(cacheWriteLock);
 		}
-		cacheWriteLock.unlock();
-
-		// Must be called before returning
-		AutoGrader.agKVServerGetFinished(key);
 		return result;
 	}
 	
@@ -108,21 +110,23 @@ public class KVServer implements KeyValueInterface {
 		// Must be called before anything else
 		AutoGrader.agKVServerDelStarted(key);
 
-		Lock cacheWriteLock = dataCache.getWriteLock(key);
-		cacheWriteLock.lock();
-		storeLock.lock();
-		if (dataStore.get(key) == null) {
-			cacheWriteLock.unlock();
-			storeLock.unlock();
-			throw new KVException(new KVMessage("resp", "Does not exist"));
+		WriteLock cacheWriteLock = dataCache.getWriteLock(key);
+		try {
+			cacheWriteLock.lock();
+			synchronized (dataStore) {
+				storeGet(key); // will throw the right error if no key
+				try {
+					dataStore.del(key);
+					dataCache.del(key);
+				} catch (KVException e) {
+					throw new KVException(new KVMessage("resp", "IO Error"));
+				}
+			}
+		} finally {
+			// Must be called before returning
+			AutoGrader.agKVServerDelFinished(key);
+			unlock(cacheWriteLock);
 		}
-		dataCache.del(key);
-		dataStore.del(key);
-		cacheWriteLock.unlock();
-		storeLock.unlock();
-		
-		// Must be called before returning
-		AutoGrader.agKVServerDelFinished(key);
 	}
 
 	public KVCache getCache() {
@@ -131,5 +135,29 @@ public class KVServer implements KeyValueInterface {
 
 	public KVStore getStore() {
 		return dataStore;
+	}
+	
+	private String storeGet(String key) throws KVException {
+		String value;
+		try {
+			value = dataStore.get(key);
+			if (value == null) {
+				throw new KVException(new KVMessage("resp", "Does not exist"));
+			}
+		} catch (KVException e) {
+			if (e.getMsg().getMessage().contains("does not exist in store")) {
+				throw new KVException(new KVMessage("resp", "Does not exist"));
+			} else {
+				throw new KVException(new KVMessage("resp", "IO Error"));
+			}
+
+		}
+		return value;
+	}
+	
+	private void unlock(WriteLock lock) {
+		if (lock.isHeldByCurrentThread()) {
+			lock.unlock();
+		}
 	}
 }

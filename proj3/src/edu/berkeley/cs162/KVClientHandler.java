@@ -88,7 +88,7 @@ public class KVClientHandler implements NetworkHandler {
 					kvServer.del(message.getKey());
 					res.setMessage("Success");
 				} else {
-					return;
+					throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
 				}
 				System.out.println(res.getKey());
 				System.out.println(res.getValue());
@@ -100,7 +100,6 @@ public class KVClientHandler implements NetworkHandler {
 			try {
 				res.sendMessage(client);
 			} catch (KVException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
