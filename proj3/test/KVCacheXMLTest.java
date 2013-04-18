@@ -6,6 +6,10 @@ import org.junit.Test;
 
 public class KVCacheXMLTest {
 
+	public void setUp() {
+		
+	}
+	
 	@Test
 	public void testToXML() throws Exception {
 		KVCache cache = new KVCache(3, 2);
