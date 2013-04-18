@@ -124,4 +124,12 @@ public class KVServer implements KeyValueInterface {
 		// Must be called before returning
 		AutoGrader.agKVServerDelFinished(key);
 	}
+
+	public KVCache getCache() {
+		return dataCache;
+	}
+
+	public KVStore getStore() {
+		return dataStore;
+	}
 }

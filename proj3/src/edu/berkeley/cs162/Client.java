@@ -46,11 +46,11 @@ public class Client {
 			String seven = "7";
 			System.out.println("putting (3, 7)");
 		  	kc.put(three, seven);
-			System.out.println("status: " + status);
+			System.out.println("ok");
 
 			System.out.println("putting (3, 7) (again)");
 			kc.put(three, seven);
-			System.out.println("status: " + status);
+			System.out.println("ok");
 			
 			System.out.println("getting key=3");			
 			String value = kc.get(three);					

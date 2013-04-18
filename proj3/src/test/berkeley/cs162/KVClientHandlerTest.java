@@ -16,57 +16,72 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import edu.berkeley.cs162.KVCache;
+import edu.berkeley.cs162.KVClient;
 import edu.berkeley.cs162.KVClientHandler;
 import edu.berkeley.cs162.KVException;
 import edu.berkeley.cs162.KVMessage;
 import edu.berkeley.cs162.KVServer;
+import edu.berkeley.cs162.KVStore;
+import edu.berkeley.cs162.NetworkHandler;
 import edu.berkeley.cs162.SocketServer;
 
 public class KVClientHandlerTest {
 
-	private static KVServer kvServer;
 	private static KVClientHandler kvClientHandler;
 	private Socket throwingSocket;
 	private Socket socket;
 	private PipedInputStream in;
 	private static Thread t;
-	private static SocketServer server;
+	
+	private static volatile KVServer kvServer;
+	
+	private static volatile KVCache kvCache;
+
+	private static volatile KVStore kvStore;
+	
+	private static volatile SocketServer socketServer;
 	
 	@Before
 	public void setUp() throws Exception {
-		throwingSocket = new UnreadableSocket();
-		in = new PipedInputStream();
-		socket = new Socket("localhost", 3014);
-		System.out.println(socket.isConnected());
-	}
-	@BeforeClass
-	public static void setUpServer() throws Exception {
-		kvServer = new KVServer(4, 20);
-		kvClientHandler = new KVClientHandler(kvServer);
-		server = new SocketServer("localhost", 3014);
-		server.addHandler(new KVClientHandler(kvServer));
-		server.connect();
-		Thread t = new Thread() {
+		final Runnable serversetup = new Runnable() {
 			public void run() {
-				try {
-					server.run();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+				synchronized (this) {
+					kvServer =  new KVServer(4, 20);
+					kvCache = kvServer.getCache();
+					kvStore = kvServer.getStore();
+					
+					socketServer = new SocketServer("localhost", 8080);
+					NetworkHandler handler = new KVClientHandler(kvServer);
+					
+					socketServer.addHandler(handler);
+					
+					try {
+						socketServer.connect();
+						this.notify();
+						socketServer.run();
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 				}
 			}
-			public void destroy() {
-				server.stop();
-			}
 		};
+		t = new Thread(serversetup);
 		t.start();
+		synchronized(serversetup) {
+			serversetup.wait();
+		}
 	}
 	
-	@AfterClass
-	public static void tearDownServer() throws Exception {
-		System.out.println("Stopping server");
-		t.destroy();
+	@After
+	public void tearDownServer() throws Exception {
+		t.stop();
+		socketServer.stop();
+		kvServer = null;
+		socketServer = null;
 	}
+	
 	@Test
 	public void testFailingConnection() throws Exception {
 		kvClientHandler.handle(throwingSocket);
@@ -76,19 +91,5 @@ public class KVClientHandlerTest {
 		} catch (KVException e) {
 			assertEquals("Network Error: Could not receive data", e.getMsg().getMessage());
 		}
-	}
-	
-	@Test
-	public void testConnection() throws Exception {
-		KVMessage inp = new KVMessage("getreq");
-		inp.setKey("key");
-		inp.sendMessage(socket);
-		//kvClientHandler.handle(socket);
-		System.out.println("Reading res");
-		KVMessage res = new KVMessage(socket.getInputStream());
-		System.out.println("Read res");
-		assertEquals("resp", res.getMsgType());
-		assertEquals("Does not exist", res.getMessage());
-		System.out.println("Done");
 	}
 }
