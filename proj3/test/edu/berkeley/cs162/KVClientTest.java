@@ -1,7 +1,7 @@
 import static org.junit.Assert.*;
 
 import org.junit.Test;
-
+package edu.berkeley.cs162;
 
 public class KVClientTest {
 	
@@ -46,7 +46,7 @@ public class KVClientTest {
 	}
 	
 	@Test
-	publc void testDel() {
+	public void testDel() {
 		
 		String value;
 		
