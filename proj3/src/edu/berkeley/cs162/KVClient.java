@@ -72,7 +72,7 @@ public class KVClient implements KeyValueInterface {
 		try {
 			socket = new Socket(this.server, this.port);
 		} catch (IOException e) {
-			throw new KVException(new KVMessage("resp", "Network Error: Could not connect"));
+			throw new KVException(new KVMessage("resp", "Network Error: Could not create socket"));
 		}
 		
 		return socket;
