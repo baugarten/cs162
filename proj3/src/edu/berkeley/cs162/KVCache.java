@@ -30,13 +30,26 @@
  */
 package edu.berkeley.cs162;
 
+import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
 
 /**
@@ -190,7 +203,7 @@ public class KVCache implements KeyValueInterface {
             			else{
 	            			entry.used=false;
             			}
-            						
+
             			if(ptr >= maxElemsPerSet-1){
             				ptr=0;
             			}
@@ -251,8 +264,59 @@ public class KVCache implements KeyValueInterface {
         }
         
 	public String toXML() {
-        // TODO: Implement Me!
-	        return null;
+    	try {
+    		DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+    		DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+    		Document doc = docBuilder.newDocument();
+    		doc.setXmlStandalone(true);
+    		
+    		// build DOM
+    		Element kvCacheNode = doc.createElement("KVCache");
+    		doc.appendChild(kvCacheNode);
+    		
+    		for (int setInd=0; setInd<numSets; setInd++) {
+    			Element setNode = doc.createElement("Set");
+    			setNode.setAttribute("id", Integer.toString(setInd));
+    			kvCacheNode.appendChild(setNode);
+    		
+    			Set set = listSet.get(setInd);
+
+    			for (String hashKey : set.hashKeys) {
+    				Entry entry = set.map.get(hashKey);
+    				Element cacheEntryNode = doc.createElement("CacheEntry");
+        			Element keyNode = doc.createElement("Key");
+        			Element valueNode = doc.createElement("Value");
+
+    				if (hashKey != null && entry != null) {
+        				cacheEntryNode.setAttribute("isReferenced", Boolean.toString(entry.used));
+        				cacheEntryNode.setAttribute("isValid", Boolean.toString(true));
+            			keyNode.setTextContent(hashKey);
+            			valueNode.setTextContent(entry.value);
+    				} else {
+        				cacheEntryNode.setAttribute("isReferenced", Boolean.toString(false));
+        				cacheEntryNode.setAttribute("isValid", Boolean.toString(false));
+            			keyNode.setTextContent("");
+            			valueNode.setTextContent("");
+    				}
+
+    				setNode.appendChild(cacheEntryNode);
+    				
+        			cacheEntryNode.appendChild(keyNode);
+        			cacheEntryNode.appendChild(valueNode);
+    			}
+    		}
+    		
+    		// output to string
+    		TransformerFactory transformerFactory = TransformerFactory.newInstance();
+    		Transformer transformer = transformerFactory.newTransformer();
+    	    transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+    		StringWriter writer = new StringWriter();
+    		transformer.transform(new DOMSource(doc), new StreamResult(writer));
+    		return writer.getBuffer().toString();
+    	} catch (Exception e) {
+    		System.err.println("KVCache::toXML: Exception building DOM: " + e);
+    	}
+		return "";
 	}
     
 }

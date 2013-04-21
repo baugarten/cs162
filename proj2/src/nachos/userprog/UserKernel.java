@@ -78,7 +78,7 @@ public class UserKernel extends ThreadedKernel {
     public void selfTest() {
 	super.selfTest();
 
-	System.out.println("Testing allocate");
+	/*System.out.println("Testing allocate");
 	ArrayList<Integer> testAlloc = new ArrayList<Integer>();
 	int allocPage;
 	while ((allocPage = allocatePage()) >= 0) {
@@ -120,7 +120,7 @@ public class UserKernel extends ThreadedKernel {
 		deallocatePage(deallocPage);
 	}
 	
-	System.out.println("Page allocation OK.");
+	System.out.println("Page allocation OK.");*/
 	
 	// ******************** CONSOLE TEST
 	System.out.println("Testing the console device. Typed characters");
