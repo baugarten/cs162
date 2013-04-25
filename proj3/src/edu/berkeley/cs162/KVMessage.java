@@ -372,7 +372,8 @@ public class KVMessage {
 			out = new ObjectOutputStream(sock.getOutputStream());
 			String temp = toXML();
 			out.writeObject(temp);
-			out.close();
+			out.flush();
+			//out.close();
 		} catch (KVException e){
 			if(out != null){
 				try {
