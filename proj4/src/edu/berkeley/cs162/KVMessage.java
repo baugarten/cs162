@@ -31,9 +31,35 @@
 package edu.berkeley.cs162;
 
 import java.io.FilterInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.net.Socket;
+import java.net.SocketException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 
 /**
@@ -48,7 +74,27 @@ public class KVMessage implements Serializable {
 	private String key = null;
 	private String value = null;
 	private String message = null;
-    private String tpcOpId = null;    
+    private String tpcOpId = null; 
+    
+	private static void fillSet(Set<String> set){
+		set.add("getreq");
+		set.add("putreq");
+		set.add("delreq");
+		set.add("resp");
+		set.add("ready");
+		set.add("commit");
+		set.add("abort");
+		set.add("ack");
+		set.add("ignoreNext");
+		set.add("register");
+	}
+	
+	private static final Set<String> typeSet;
+	static {
+		final Set<String> temp = new HashSet<String>();
+		fillSet(temp);
+		typeSet = Collections.unmodifiableSet(temp);
+	}
 	
 	public final String getKey() {
 		return key;
@@ -105,11 +151,20 @@ public class KVMessage implements Serializable {
 	 * @throws KVException of type "resp" with message "Message format incorrect" if msgType is unknown
 	 */
 	public KVMessage(String msgType) throws KVException {
-	    // TODO: implement me
+		if(!typeSet.contains(msgType)){
+			throw new KVException(new KVMessage("resp","Message format incorrect"));
+		}
+	    
+		this.msgType = msgType;
 	}
 	
 	public KVMessage(String msgType, String message) throws KVException {
-        // TODO: implement me
+		if(!typeSet.contains(msgType)){
+			throw new KVException(new KVMessage("resp","Message format incorrect"));
+		}
+	    
+		this.msgType = msgType;
+		this.message = message;
 	}
 	
 	 /***
@@ -121,10 +176,180 @@ public class KVMessage implements Serializable {
      * c. "Message format incorrect" - if there message does not conform to the required specifications. Examples include incorrect message type. 
      */
 	public KVMessage(InputStream input) throws KVException {
-		/*
-		 * After Spring 2013, this will be taken out in favor of passing in the socket directly.
-		 */
-	     // TODO: implement me
+   		NoCloseInputStream noCloseStream;
+   		ObjectInputStream in = null;
+   		String attr, temp;
+   		Node root, keyNode, valueNode, msgNode, tpcIdNode;
+   		NodeList children, keyEle, valueEle, msgEle; 
+   		try{
+   			//create a DOM from the InputStream input
+   			noCloseStream = new NoCloseInputStream(input);
+   			in = new ObjectInputStream(noCloseStream);
+   			temp = (String) in.readObject();
+   			DocumentBuilderFactory factory = DocumentBuilderFactory
+   					.newInstance();
+   			InputSource source = new InputSource(new StringReader(temp));
+   			Document document = factory.newDocumentBuilder().parse(source);
+   			document.getDocumentElement().normalize();
+   			
+   			//Parse the DOM and set appropriate variables
+   			//The rootElement is KVMessage
+   			NodeList nList = document.getElementsByTagName("KVMessage");
+   			if (nList.getLength() != 1){
+   				throw new KVException(new KVMessage("resp","Message format incorrect"));
+   			}			
+   			root = nList.item(0);
+   			
+   			//Get the type of the message
+   			NamedNodeMap attributes = root.getAttributes();
+   			if (attributes.getLength() != 1){
+   				throw new KVException(new KVMessage("resp","Message format incorrect"));
+   			}
+   			if (!attributes.item(0).getNodeName().equals("type")){
+   				throw new KVException(new KVMessage("resp","Message format incorrect"));
+   			}
+   			attr = attributes.item(0).getNodeValue();
+   			if(!typeSet.contains(attr)){
+   				throw new KVException(new KVMessage("resp","Message format incorrect"));
+   			}
+   			this.msgType = attr;
+   			
+   			//Get the key, value, and message	
+   			if(attr.equals("getreq") || attr.equals("delreq") || attr.equals("putreq")){
+   				children = document.getElementsByTagName("Key");
+   				if(children.getLength() != 1){
+   					throw new KVException(new KVMessage("resp","Message format incorrect"));
+   				}
+   				keyNode = children.item(0);
+   				this.key = keyNode.getTextContent();
+   				
+   				if(key.length() == 0){
+   					throw new KVException(new KVMessage("resp", "Undersized key"));
+   				} 
+   				
+   				if(attr.equals("putreq")){
+   					if(this.key.length() > 256){
+   						throw new KVException(new KVMessage("resp","Oversized key"));
+   					}
+   					
+   					children = document.getElementsByTagName("Value");
+   					if(children.getLength() != 1){
+   						throw new KVException(new KVMessage("resp","Message format incorrect"));
+   					}
+   					valueNode = children.item(0);
+   					this.value = valueNode.getTextContent();
+   					if(this.value.length() > 256000){
+   						throw new KVException(new KVMessage("resp","Oversized value"));
+   					}
+   					
+   					if(this.value.length() == 0){
+   						throw new KVException(new KVMessage("resp", "Undersized value"));
+   					}
+   					
+   					children = document.getElementsByTagName("TPCOpId");
+   					if(children.getLength() > 1){
+   						throw new KVException(new KVMessage("resp", "Message format incorrect"));
+   					}
+   					if(children.getLength() == 1){
+   						tpcIdNode = children.item(0);
+   						this.tpcOpId = tpcIdNode.getTextContent();
+   					}
+   				}
+   				
+   				if(attr.equals("delreq")){
+   					children = document.getElementsByTagName("TPCOpId");
+   					if(children.getLength() > 1){
+   						throw new KVException(new KVMessage("resp", "Message format incorrect"));
+   					}
+   					if(children.getLength() == 1){
+   						tpcIdNode = children.item(0);
+   						this.tpcOpId = tpcIdNode.getTextContent();
+   					}
+   				}
+   			}
+   			else if (attr.equals("ready") || attr.equals("commit") || attr.equals("ack")){
+				children = document.getElementsByTagName("TPCOpId");
+				if (children.getLength() != 1) {
+					throw new KVException(new KVMessage("resp",
+							"Message format incorrect"));
+				}
+				if (children.getLength() == 1) {
+					tpcIdNode = children.item(0);
+					this.tpcOpId = tpcIdNode.getTextContent();
+				}
+   			}
+   			else if (attr.equals("abort")){
+   				children = document.getElementsByTagName("TPCOpId");
+				if (children.getLength() != 1) {
+					throw new KVException(new KVMessage("resp",
+							"Message format incorrect"));
+				}
+				tpcIdNode = children.item(0);
+				this.tpcOpId = tpcIdNode.getTextContent();
+				
+				children = document.getElementsByTagName("Message");
+				if (children.getLength() > 1) {
+					throw new KVException(new KVMessage("resp",
+							"Message format incorrect"));
+				}
+				if (children.getLength() == 1) {
+					msgNode = children.item(0);
+					this.message = msgNode.getTextContent();
+				}
+   			}
+   			else if (attr.equals("register")){
+   				children = document.getElementsByTagName("Message");
+				if (children.getLength() != 1) {
+					throw new KVException(new KVMessage("resp",
+							"Message format incorrect"));
+				}
+				
+				msgNode = children.item(0);
+				this.message = msgNode.getTextContent();		
+   			}
+   			else {
+   				keyEle = document.getElementsByTagName("Key");
+   				valueEle = document.getElementsByTagName("Value");
+   				msgEle = document.getElementsByTagName("Message");
+   				
+   				if(keyEle.getLength() == 1 && valueEle.getLength() == 1 && msgEle.getLength() == 0){
+   					keyNode = keyEle.item(0);
+   					this.key = keyNode.getTextContent();
+   					if(this.key.length() > 256 || this.key.length() == 0){
+   						throw new KVException(new KVMessage("resp","Oversized key"));
+   					}
+   					
+   					valueNode = valueEle.item(0);
+   					this.value = valueNode.getTextContent();
+   					if(this.value.length() > 256000 || this.key.length() == 0){
+   						throw new KVException(new KVMessage("resp","Oversized value"));
+   					}
+   				}
+   				else if (keyEle.getLength() == 0 && valueEle.getLength() == 0 && msgEle.getLength() == 1){
+   					msgNode = msgEle.item(0);
+   					this.message = msgNode.getTextContent();
+   				}
+   				else {
+   					throw new KVException(new KVMessage("resp","Message format incorrect"));
+   				}
+   			}	
+   		} catch (SAXException e){
+   			throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
+   		} catch (IOException e){
+   			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
+   		} catch (ParserConfigurationException e) {
+   			throw new KVException(new KVMessage("resp", "Unknown Error: Something is wrong"));
+   		} catch (ClassNotFoundException e){
+   			throw new KVException(new KVMessage("resp","Unknown Error: Something is wrong"));
+   		}
+   		finally {
+   			if(in != null){
+   				try {
+   					in.close();
+   				} catch (IOException e) {
+   				}
+   			}
+   		}
 	}
 	
 	/**
@@ -136,7 +361,16 @@ public class KVMessage implements Serializable {
 	 * c. "Message format incorrect" - if there message does not conform to the required specifications. Examples include incorrect message type. 
 	 */
 	public KVMessage(Socket sock) throws KVException {
-		
+		this(KVgetInputStream(sock));
+	}
+
+	private static InputStream KVgetInputStream(Socket sock) throws KVException {
+		try {
+			return sock.getInputStream();
+		} catch (IOException e) {
+			throw new KVException(new KVMessage("resp",
+					"Unknown Error: Could not get InputStream"));
+		}
 	}
 
 	/**
@@ -149,8 +383,28 @@ public class KVMessage implements Serializable {
 	 * c. "Message format incorrect" - if there message does not conform to the required specifications. Examples include incorrect message type. 
 	 */
 	public KVMessage(Socket sock, int timeout) throws KVException {
-	     // TODO: implement me
+		this(KVgetInputStreamAndTO(sock, timeout));
 	}
+
+	private static InputStream KVgetInputStreamAndTO(Socket sock, int timeout)
+			throws KVException {
+		try {
+			sock.setSoTimeout(timeout);
+			return sock.getInputStream();
+		} catch (SocketException e) {
+			throw new KVException(new KVMessage("resp",
+					"Unknown Error: Could not set socket timeout"));
+		} catch (IOException e) {
+			try {
+				sock.setSoTimeout(0);
+			} catch (SocketException e1) {
+				throw new KVException(new KVMessage("resp",
+						"Unknown Error: Could not set socket timeout"));
+			}
+			throw new KVException(new KVMessage("resp",
+					"Unknown Error: Could not get InputStream"));
+		}
+    }
 	
 	/**
 	 * Copy constructor
@@ -171,12 +425,143 @@ public class KVMessage implements Serializable {
 	 * @throws KVException if not enough data is available to generate a valid KV XML message
 	 */
 	public String toXML() throws KVException {
-        return null;
-	      // TODO: implement me
+		try{
+			Element rootEle, keyEle, valueEle, msgEle, tpcIdEle;
+			
+			DocumentBuilderFactory docFac = DocumentBuilderFactory.newInstance();
+			DocumentBuilder docBuilder = docFac.newDocumentBuilder();
+			
+			//root element
+			Document doc = docBuilder.newDocument();
+			doc.setXmlStandalone(true);
+			rootEle = doc.createElement("KVMessage");
+			doc.appendChild(rootEle);
+			
+			//set attribute to KVMessage node
+			rootEle.setAttribute("type",msgType);
+			
+			//add nodes to the DOM
+			if(msgType.equals("getreq") || msgType.equals("putreq") || msgType.equals("delreq")){
+				if(key == null){
+					throw new KVException(
+							new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
+				}
+				if(key.length() == 0){
+					throw new KVException(new KVMessage("resp", "Undersized key"));
+				}
+				keyEle = doc.createElement("Key");
+				keyEle.appendChild(doc.createTextNode(key));
+				rootEle.appendChild(keyEle);
+				
+				if(msgType.equals("putreq")){
+					if(value == null){
+						throw new KVException(
+								new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
+					}
+					
+					if(key.length() > 256){
+						throw new KVException(new KVMessage("resp","Oversized key"));
+					}
+
+					if(value.length() > 256000){
+						throw new KVException(new KVMessage("resp","Oversized value"));
+					}
+					
+					if(value.length() == 0){
+						throw new KVException(new KVMessage("resp", "Undersized value"));
+					}
+					
+					valueEle = doc.createElement("Value");
+					valueEle.appendChild(doc.createTextNode(value));
+					rootEle.appendChild(valueEle);
+					
+					if(tpcOpId != null){
+						tpcIdEle = doc.createElement("TPCOpId");
+						tpcIdEle.appendChild(doc.createTextNode(tpcOpId));
+						rootEle.appendChild(tpcIdEle);
+					}
+				}
+				
+				if (msgType.equals("delreq")){
+					if(tpcOpId != null){
+						tpcIdEle = doc.createElement("TPCOpId");
+						tpcIdEle.appendChild(doc.createTextNode(tpcOpId));
+						rootEle.appendChild(tpcIdEle);
+					}
+				}
+			} else if (msgType.equals("ready") || msgType.equals("commit") || msgType.equals("abort") || msgType.equals("ack") ){
+				
+				if(msgType.equals("abort")){
+					if(message != null){
+						msgEle = doc.createElement("Message");
+						msgEle.appendChild(doc.createTextNode(message));
+						rootEle.appendChild(msgEle);
+					}
+				}
+				
+				if(tpcOpId == null){
+					throw new KVException(
+							new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
+				}
+				tpcIdEle = doc.createElement("TPCOpId");
+				tpcIdEle.appendChild(doc.createTextNode(tpcOpId));
+				rootEle.appendChild(tpcIdEle);
+				
+			} else if (msgType.equals("register")){
+				if(message == null){
+					throw new KVException(new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
+				}
+				msgEle = doc.createElement("Message");
+				msgEle.appendChild(doc.createTextNode(message));
+				rootEle.appendChild(msgEle);			
+			} else if (msgType.equals("resp")){
+				if(key != null && value != null && message == null){
+					
+					keyEle = doc.createElement("Key");
+					keyEle.appendChild(doc.createTextNode(key));
+					rootEle.appendChild(keyEle);
+
+					valueEle = doc.createElement("Value");
+					valueEle.appendChild(doc.createTextNode(value));
+					rootEle.appendChild(valueEle);
+					
+				}
+				else if(message != null && key == null && value == null){
+					msgEle = doc.createElement("Message");
+					msgEle.appendChild(doc.createTextNode(message));
+					rootEle.appendChild(msgEle);
+				}
+				else {
+					throw new KVException(
+						new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
+				}
+			}
+			
+			//convert the DOM to a string and return that string
+			StringWriter stringWriter = new StringWriter();
+			Transformer transformer = TransformerFactory.newInstance().newTransformer();
+			transformer.transform(new DOMSource(doc), new StreamResult(stringWriter));
+			String xml = stringWriter.toString();
+			return xml;
+			
+		} catch (ParserConfigurationException pce){
+			throw new KVException(new KVMessage("resp", "Unknown Error: Could not send data"));
+		} catch (TransformerException tfe){
+			throw new KVException(new KVMessage("resp", "Unknown Error: Could not send data"));
+		}
 	}
 	
 	public void sendMessage(Socket sock) throws KVException {
-	      // TODO: implement me
+		ObjectOutputStream out = null;
+		try {
+			out = new ObjectOutputStream(sock.getOutputStream());
+			String temp = toXML();
+			out.writeObject(temp);
+			out.flush();
+		} 
+		catch (IOException e){
+			throw new KVException(new KVMessage("resp","Network Error: Could not send data"));
+		} 
 	}
 	
 	public void sendMessage(Socket sock, int timeout) throws KVException {

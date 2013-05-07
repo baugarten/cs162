@@ -31,6 +31,7 @@
  */
 package edu.berkeley.cs162;
 
+import java.io.IOException;
 import java.net.Socket;
 
 
@@ -54,26 +55,133 @@ public class KVClient implements KeyValueInterface {
 	}
 	
 	private Socket connectHost() throws KVException {
-	    // TODO: Implement Me!  
-		return null;
+		Socket socket = null;
+
+		try {
+			socket = new Socket(this.server, this.port);
+			socket.setSoTimeout(20000);
+		} catch (IOException e) {
+			throw new KVException(new KVMessage("resp",
+					"Network Error: Could not create socket"));
+		}
+
+		return socket;
 	}
 	
 	private void closeHost(Socket sock) throws KVException {
-	    // TODO: Implement Me!
+	    try {
+			sock.close();
+	    } catch (IOException e) {
+	    	throw new KVException(new KVMessage("resp", "Unknown Error: " + e.getMessage()));
+	    }
 	}
 	
 	public void put(String key, String value) throws KVException {
-	    // TODO: Implement Me from Project 3
-	    return;
+		Socket socket = null;
+		KVMessage message = null;
+		KVMessage response = null;
+		
+		try {
+			// Connect to server
+			socket = connectHost();
+
+			// Initialize a KVMessage of type putreq
+			message = new KVMessage("putreq");
+
+			// Set key and value then send message
+			message.setKey(key);
+			message.setValue(value);
+			message.sendMessage(socket);
+		
+			// Get response from server
+			response = new KVMessage(socket.getInputStream());
+			closeHost(socket);
+		} catch (IOException e) {
+			throw new KVException(new KVMessage("resp", "Unknown Error: " + e.getMessage()));
+		}
+		
+		// If we don't recieve a KVMessage of type "resp" throw unknown error
+		if (! response.getMsgType().equals("resp")) {
+			throw new KVException(new KVMessage("resp", "Uknown Error: Recieved a message not of type 'resp' from server"));
+		}
+		
+		// If KVMessage response isn't successful, throw KVException with response
+		if (! response.getMessage().equals("Success")) {
+			throw new KVException(response);
+		}
+		
+		return;
 	}
 
 	public String get(String key) throws KVException {
-		// TODO: Implement Me from Project 3
-	    return null;
+		Socket socket = null;
+		KVMessage message = null;
+		KVMessage response = null;
+		
+		try {
+			// Connect to server
+			socket = connectHost();
+			
+			// Initialize KVMessage of type getreq
+			message = new KVMessage("getreq");
+			
+			// Set key and send message to server via socket
+			message.setKey(key);
+			message.sendMessage(socket);
+			
+			// Get the response from the server
+			response = new KVMessage(socket.getInputStream());
+			closeHost(socket);
+		} catch (IOException e) {
+			throw new KVException(new KVMessage("resp", "Unknown Error: " + e.getMessage()));
+		}
+		
+		// If we don't recieve a KVMessage of type "resp" throw unknown error
+		if (! response.getMsgType().equals("resp")) {
+			throw new KVException(new KVMessage("resp", "Uknown Error: Recieved a message not of type 'resp' from server"));
+		}
+		
+		// If KVMessage response doesn't have a value of type String, throw KVException with response
+		if ( response.getValue() == null) {
+			throw new KVException(response);
+		} 
+		
+		return response.getValue();
 	}
 	
 	public void del(String key) throws KVException {
-		// TODO: Implement Me from Project 3
+		Socket socket = null;
+		KVMessage message = null;
+		KVMessage response = null;
+		
+		try {
+			// Connect to server
+			socket = connectHost();
+
+			// Initialize a KVMessage of type delreq
+			message = new KVMessage("delreq");
+
+			// Set key and value then send message
+			message.setKey(key);
+			message.sendMessage(socket);
+
+			// Get response from server
+			response = new KVMessage(socket.getInputStream());
+			closeHost(socket);
+		} catch (IOException e) {
+			throw new KVException(new KVMessage("resp", "Unknown Error: " + e.getMessage()));
+		}
+
+		// If we don't recieve a KVMessage of type "resp" throw unknown error
+		if (! response.getMsgType().equals("resp")) {
+			throw new KVException(new KVMessage("resp", "Uknown Error: Recieved a message not of type 'resp' from server"));
+		}
+		
+		// If KVMessage response isn't successful, throw KVException with response
+		if (! response.getMessage().equals("Success")) {
+			throw new KVException(response);
+		} 
+		
 		return;
 	}	
 	
