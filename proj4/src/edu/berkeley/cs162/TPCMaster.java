@@ -33,11 +33,15 @@ package edu.berkeley.cs162;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
-import java.util.TreeSet;
+import java.util.*;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 public class TPCMaster {
-	
+    List<SlaveInfo> slaves;
+    
 	/**
 	 * Implements NetworkHandler to handle registration requests from 
 	 * SlaveServers.
@@ -94,20 +98,126 @@ public class TPCMaster {
 		 * @throws KVException
 		 */
 		public SlaveInfo(String slaveInfo) throws KVException {
-			// implement me
+			int aPos = slaveInfo.indexOf('@');
+			int cPos = slaveInfo.indexOf(':');
+			if (aPos > cPos || aPos < 0 || cPos < 0) {
+				throw new KVException(new KVMessage("Registration Error: Received unparseable slave information"));
+			}
+			
+			String idStr = slaveInfo.substring(0, aPos);
+			hostName = slaveInfo.substring(aPos+1, cPos);
+			String portStr = slaveInfo.substring(cPos+1, slaveInfo.length());
+			
+			try {
+				slaveID = Long.parseLong(idStr);
+				port = Integer.parseInt(portStr);
+			} catch (NumberFormatException e) {
+				throw new KVException(new KVMessage("Registration Error: Received unparseable slave information"));
+			}
+			if (port > 65535) {
+				throw new KVException(new KVMessage("Registration Error: Received unparseable slave information"));
+			}
 		}
 		
 		public long getSlaveID() {
 			return slaveID;
 		}
 		
-		public Socket connectHost() throws KVException {
-		    // TODO: Optional Implement Me!
-			return null;
+		public KVMessage doKVOperation(KVMessage op) throws KVException {
+			try {
+				Socket socket = new Socket(this.hostName, this.port);
+				socket.setSoTimeout(TIMEOUT_MILLISECONDS);
+				
+				op.sendMessage(socket);
+				KVMessage response = new KVMessage(socket.getInputStream());
+				socket.close();
+				
+				return response;
+			} catch (SocketTimeoutException e) {
+				return null;
+			} catch (IOException e) {
+				throw new KVException(new KVMessage("resp", "Network Error: Could not create socket"));
+			}
 		}
 		
-		public void closeHost(Socket sock) throws KVException {
-		    // TODO: Optional Implement Me!
+		String slaveGet(String key) {
+			try {
+				KVMessage msg = new KVMessage("getreq");
+				msg.setKey(key);
+				KVMessage resp = doKVOperation(msg);
+				if (resp != null && resp.getMsgType() == "resp" && resp.getKey() == key) {
+					return resp.getValue();
+				} else {
+					return null;
+				}
+			} catch (KVException e) {
+				return null;
+			}
+		}
+		
+		boolean tpcPutVote(String key, String val, String tpcOpId) {
+			try {
+				KVMessage msg = new KVMessage("putreq");
+				msg.setKey(key);
+				msg.setValue(val);
+				msg.setTpcOpId(tpcOpId);
+				KVMessage resp = doKVOperation(msg);
+				if (resp != null && resp.getMsgType() == "ready") {
+					return true;
+				} else {
+					return false;
+				}
+			} catch (KVException e) {
+				return false;
+			}
+		}
+		
+		boolean tpcDeleteVote(String key, String tpcOpId) {
+			try {
+				KVMessage msg = new KVMessage("delreq");
+				msg.setKey(key);
+				msg.setTpcOpId(tpcOpId);
+				KVMessage resp = doKVOperation(msg);
+				if (resp != null && resp.getMsgType() == "ready") {
+					return true;
+				} else {
+					return false;
+				}
+			} catch (KVException e) {
+				return false;
+			}
+		}
+		
+		void tpcCommit(String tpcOpId) {
+			boolean done = false;
+			while (!done) {
+				try {
+					KVMessage msg = new KVMessage("commit");
+					msg.setTpcOpId(tpcOpId);
+					KVMessage resp = doKVOperation(msg);
+					if (resp != null && resp.getMsgType() == "ack" && resp.getTpcOpId() == tpcOpId) {
+						done = true;
+					}
+				} catch (KVException e) {
+					
+				}
+			}
+		}
+		
+		void tpcAbort(String tpcOpId) {
+			boolean done = false;
+			while (!done) {
+				try {
+					KVMessage msg = new KVMessage("abort");
+					msg.setTpcOpId(tpcOpId);
+					KVMessage resp = doKVOperation(msg);
+					if (resp != null && resp.getMsgType() == "ack" && resp.getTpcOpId() == tpcOpId) {
+						done = true;
+					}
+				} catch (KVException e) {
+					
+				}
+			}
 		}
 	}
 	
@@ -201,9 +311,16 @@ public class TPCMaster {
 	private SlaveInfo findFirstReplica(String key) {
 		// 64-bit hash of the key
 		long hashedKey = hashTo64bit(key.toString());
+		
+		for (int i=0; i<slaves.size(); i++) {
+			if (isLessThanUnsigned(hashedKey, slaves.get(i).slaveID)) {
+				return slaves.get(i);
+			}
+		}
 
-		// implement me
-		return null;
+		return slaves.get(0);
+		// and if this results in an array out of bounds
+		// that's a user error and out of our care
 	}
 	
 	/**
@@ -212,7 +329,11 @@ public class TPCMaster {
 	 * @return
 	 */
 	private SlaveInfo findSuccessor(SlaveInfo firstReplica) {
-		// implement me
+		for (int i=0; i<slaves.size(); i++) {
+			if (slaves.get(i) == firstReplica) {
+				return slaves.get((i+1)%slaves.size());
+			}
+		}
 		return null;
 	}
 	
@@ -224,13 +345,117 @@ public class TPCMaster {
 	 * @param isPutReq
 	 * @throws KVException
 	 */
-	public synchronized void performTPCOperation(KVMessage msg, boolean isPutReq) throws KVException {
+	public void performTPCOperation(KVMessage msg, boolean isPutReq) throws KVException {
 		AutoGrader.agPerformTPCOperationStarted(isPutReq);
-		// implement me
+		
+		String key = msg.getKey();
+		
+		WriteLock masterLock = masterCache.getWriteLock(key);
+		masterLock.lock();
+		
+		SlaveInfo slave1 = findFirstReplica(key);
+		SlaveInfo slave2 = findSuccessor(slave1);
+		String tpcOpId = getNextTpcOpId();
+		
+		SlaveVoteRunnable slaveVote1 = new SlaveVoteRunnable(slave1, key, msg.getValue(), tpcOpId, isPutReq);
+		SlaveVoteRunnable slaveVote2 = new SlaveVoteRunnable(slave2, key, msg.getValue(), tpcOpId, isPutReq);
+		Thread slaveThread1 = new Thread(slaveVote1);
+		Thread slaveThread2 = new Thread(slaveVote2);
+		slaveThread1.start();
+		slaveThread2.start();
+		
+		try {
+			slaveThread1.join();
+			slaveThread2.join();
+		} catch (InterruptedException e) {
+			masterLock.unlock();
+			AutoGrader.agPerformTPCOperationFinished(isPutReq);
+			throw new KVException(new KVMessage("Internal: performTPCOperation failed: InterruptedException"));
+		}
+		
+		boolean doCommit = slaveVote1.returnVal && slaveVote2.returnVal;
+		SlaveDecisionRunnable slaveDecision1 = new SlaveDecisionRunnable(slave1, tpcOpId, doCommit);
+		SlaveDecisionRunnable slaveDecision2 = new SlaveDecisionRunnable(slave2, tpcOpId, doCommit);
+		slaveThread1 = new Thread(slaveDecision1);
+		slaveThread2 = new Thread(slaveDecision2);
+		slaveThread1.start();
+		slaveThread2.start();
+		
+		if (doCommit) {
+			// do cache commit in main thread
+			if (isPutReq) {
+				masterCache.put(key, msg.getValue());
+			} else {	// cache delete
+				masterCache.del(key);
+			}
+		}
+		
+		try{
+			slaveThread1.join();
+			slaveThread2.join();
+		} catch (InterruptedException e) {	
+			masterLock.unlock();
+			AutoGrader.agPerformTPCOperationFinished(isPutReq);
+			throw new KVException(new KVMessage("Internal: performTPCOperation failed: InterruptedException"));
+		}
+		
+		if (!doCommit) {
+			masterLock.unlock();
+			AutoGrader.agPerformTPCOperationFinished(isPutReq);
+			throw new KVException(new KVMessage("Internal: performTPCOperation failed: TPC refused"));
+		}
+		
+		masterLock.unlock();
 		AutoGrader.agPerformTPCOperationFinished(isPutReq);
 		return;
 	}
 
+	public class SlaveDecisionRunnable implements Runnable {
+		SlaveInfo slave;
+		String tpcOpId;
+		boolean isCommit;
+
+		public SlaveDecisionRunnable(SlaveInfo slave, String tpcOpId, boolean isCommit) {
+			this.slave = slave;
+			this.tpcOpId = tpcOpId;
+			this.isCommit = isCommit;
+		}
+		
+		@Override
+		public void run() {
+			if (isCommit) {
+				slave.tpcCommit(tpcOpId);
+			} else {	// abort
+				slave.tpcAbort(tpcOpId);
+			}
+		}
+	}
+	
+	public class SlaveVoteRunnable implements Runnable {
+		boolean returnVal = false;
+		
+		SlaveInfo slave;
+		String key, val, tpcOpId;
+		boolean isPutReq;
+		
+		public SlaveVoteRunnable(SlaveInfo slave, String key, String val, String tpcOpId, boolean isPutReq) {
+			this.slave = slave;
+			this.key = key;
+			this.val = val;
+			this.tpcOpId = tpcOpId;
+			this.isPutReq = isPutReq;
+		}
+		
+		@Override
+		public void run() {
+			if (isPutReq) {
+				returnVal = slave.tpcPutVote(key, val, tpcOpId);
+			} else {	// delete req
+				returnVal = slave.tpcDeleteVote(key, tpcOpId);
+			}
+		}
+	}
+	
 	/**
 	 * Perform GET operation in the following manner:
 	 * - Try to GET from first/primary replica
@@ -245,8 +470,79 @@ public class TPCMaster {
 	 */
 	public String handleGet(KVMessage msg) throws KVException {
 		AutoGrader.aghandleGetStarted();
-		// implement me
+
+		String key = msg.getKey();
+		
+		WriteLock masterLock = masterCache.getWriteLock(key);
+		masterLock.lock();
+		String cacheVal = masterCache.get(key);
+		if (cacheVal != null) {
+			masterLock.unlock();
+			AutoGrader.aghandleGetFinished();
+			return cacheVal;
+		}
+		
+		Semaphore masterWake = new Semaphore(0);
+		SlaveInfo slave1 = findFirstReplica(key);
+		SlaveInfo slave2 = findSuccessor(slave1);
+		SlaveGetRunnable slaveGet1 = new SlaveGetRunnable(slave1, key, masterWake);
+		SlaveGetRunnable slaveGet2 = new SlaveGetRunnable(slave2, key, masterWake);
+		Thread slaveThread1 = new Thread(slaveGet1);
+		Thread slaveThread2 = new Thread(slaveGet2);
+		slaveThread1.start();
+		slaveThread2.start();
+		
+		try {
+			masterWake.acquire();
+		} catch (InterruptedException e) {
+			masterLock.unlock();
+			AutoGrader.aghandleGetFinished();
+			throw new KVException(new KVMessage("Internal: performTPCOperation failed: InterruptedException"));
+		}
+		
+		String returned;
+		if (slaveGet1.done) {
+			returned = slaveGet1.returnVal;
+		} else if (slaveGet2.done) {
+			returned = slaveGet1.returnVal;
+		} else {
+			masterLock.unlock();
+			AutoGrader.aghandleGetFinished();
+			throw new KVException(new KVMessage("Internal: performTPCOperation failed: This really shouldn't happen"));
+		}
+		
+		// update cache
+		if (returned != null) {
+			masterCache.put(key, returned);
+		}
+		
+		masterLock.unlock();
+		
 		AutoGrader.aghandleGetFinished();
-		return null;
+		return returned;
+	}
+	
+	public class SlaveGetRunnable implements Runnable {
+		String returnVal = null;
+		boolean done = false;
+		Semaphore masterWake;
+		
+		SlaveInfo slave;
+		String key;
+		
+		public SlaveGetRunnable(SlaveInfo slave, String key, Semaphore masterWake) {
+			this.slave = slave;
+			this.key = key;
+			this.masterWake = masterWake;
+		}
+		
+		@Override
+		public void run() {
+			returnVal = slave.slaveGet(key);
+			done = true;
+			masterWake.release();
+		}
+		
+		
 	}
 }
