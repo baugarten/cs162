@@ -60,6 +60,20 @@ public class TPCMaster {
 		public void handle(Socket client) throws IOException {
 			// implement me
 		}
+		
+		private class RegistrationHandler implements Runnable {
+			
+			private Socket client = null;
+
+			public RegistrationHandler(Socket client) {
+				this.client = client;
+			}
+
+			@Override
+			public void run() {
+				// implement me
+			}
+		}	
 	}
 	
 	/**
@@ -73,10 +87,6 @@ public class TPCMaster {
 		private String hostName = null;
 		// Port which SlaveServer is listening to
 		private int port = -1;
-		
-		// Variables to be used to maintain connection with this SlaveServer
-		private KVClient kvClient = null;
-		private Socket kvSocket = null;
 
 		/**
 		 * 
@@ -90,17 +100,14 @@ public class TPCMaster {
 		public long getSlaveID() {
 			return slaveID;
 		}
-
-		public KVClient getKvClient() {
-			return kvClient;
+		
+		public Socket connectHost() throws KVException {
+		    // TODO: Optional Implement Me!
+			return null;
 		}
-
-		public Socket getKvSocket() {
-			return kvSocket;
-		}
-
-		public void setKvSocket(Socket kvSocket) {
-			this.kvSocket = kvSocket;
+		
+		public void closeHost(Socket sock) throws KVException {
+		    // TODO: Optional Implement Me!
 		}
 	}
 	
@@ -211,17 +218,17 @@ public class TPCMaster {
 	
 	/**
 	 * Synchronized method to perform 2PC operations one after another
+	 * You will need to remove the synchronized declaration if you wish to attempt the extra credit
 	 * 
 	 * @param msg
 	 * @param isPutReq
-	 * @return True if the TPC operation has succeeded
 	 * @throws KVException
 	 */
-	public synchronized boolean performTPCOperation(KVMessage msg, boolean isPutReq) throws KVException {
+	public synchronized void performTPCOperation(KVMessage msg, boolean isPutReq) throws KVException {
 		AutoGrader.agPerformTPCOperationStarted(isPutReq);
 		// implement me
 		AutoGrader.agPerformTPCOperationFinished(isPutReq);
-		return false;
+		return;
 	}
 
 	/**

@@ -32,6 +32,7 @@ package edu.berkeley.cs162;
 
 import java.io.FilterInputStream;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.net.Socket;
 
 
@@ -39,11 +40,13 @@ import java.net.Socket;
  * This is the object that is used to generate messages the XML based messages 
  * for communication between clients and servers. 
  */
-public class KVMessage {
+public class KVMessage implements Serializable {
+	
+	private static final long serialVersionUID = 6473128480951955693L;
+	
 	private String msgType = null;
 	private String key = null;
 	private String value = null;
-	private String status = null;
 	private String message = null;
     private String tpcOpId = null;    
 	
@@ -61,14 +64,6 @@ public class KVMessage {
 
 	public final void setValue(String value) {
 		this.value = value;
-	}
-
-	public final String getStatus() {
-		return status;
-	}
-
-	public final void setStatus(String status) {
-		this.status = status;
 	}
 
 	public final String getMessage() {
@@ -126,6 +121,34 @@ public class KVMessage {
      * c. "Message format incorrect" - if there message does not conform to the required specifications. Examples include incorrect message type. 
      */
 	public KVMessage(InputStream input) throws KVException {
+		/*
+		 * After Spring 2013, this will be taken out in favor of passing in the socket directly.
+		 */
+	     // TODO: implement me
+	}
+	
+	/**
+	 * 
+	 * @param sock Socket to receive from
+	 * @throws KVException if there is an error in parsing the message. The exception should be of type "resp and message should be :
+	 * a. "XML Error: Received unparseable message" - if the received message is not valid XML.
+	 * b. "Network Error: Could not receive data" - if there is a network error causing an incomplete parsing of the message.
+	 * c. "Message format incorrect" - if there message does not conform to the required specifications. Examples include incorrect message type. 
+	 */
+	public KVMessage(Socket sock) throws KVException {
+		
+	}
+
+	/**
+	 * 
+	 * @param sock Socket to receive from
+	 * @param timeout Give up after timeout milliseconds
+	 * @throws KVException if there is an error in parsing the message. The exception should be of type "resp and message should be :
+	 * a. "XML Error: Received unparseable message" - if the received message is not valid XML.
+	 * b. "Network Error: Could not receive data" - if there is a network error causing an incomplete parsing of the message.
+	 * c. "Message format incorrect" - if there message does not conform to the required specifications. Examples include incorrect message type. 
+	 */
+	public KVMessage(Socket sock, int timeout) throws KVException {
 	     // TODO: implement me
 	}
 	
@@ -138,7 +161,6 @@ public class KVMessage {
 		this.msgType = kvm.msgType;
 		this.key = kvm.key;
 		this.value = kvm.value;
-		this.status = kvm.status;
 		this.message = kvm.message;
 		this.tpcOpId = kvm.tpcOpId;
 	}
@@ -155,5 +177,13 @@ public class KVMessage {
 	
 	public void sendMessage(Socket sock) throws KVException {
 	      // TODO: implement me
+	}
+	
+	public void sendMessage(Socket sock, int timeout) throws KVException {
+		/*
+		 * As was pointed out, setting a timeout when sending the message (while would still technically work),
+		 * is a bit silly. As such, this method will be taken out at the end of Spring 2013.
+		 */
+		// TODO: optional implement me
 	}
 }

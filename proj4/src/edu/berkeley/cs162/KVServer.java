@@ -85,4 +85,10 @@ public class KVServer implements KeyValueInterface {
 		// Must be called before returning
 		AutoGrader.agKVServerDelFinished(key);
 	}
+	
+	public boolean hasKey (String key) throws KVException {
+		// TODO: optional implement me
+		
+		return false;
+	}
 }

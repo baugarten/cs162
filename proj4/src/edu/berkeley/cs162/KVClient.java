@@ -53,12 +53,12 @@ public class KVClient implements KeyValueInterface {
 		this.port = port;
 	}
 	
-	public Socket connectHost() throws KVException {
+	private Socket connectHost() throws KVException {
 	    // TODO: Implement Me!  
 		return null;
 	}
 	
-	public void closeHost(Socket sock) throws KVException {
+	private void closeHost(Socket sock) throws KVException {
 	    // TODO: Implement Me!
 	}
 	
@@ -66,31 +66,16 @@ public class KVClient implements KeyValueInterface {
 	    // TODO: Implement Me from Project 3
 	    return;
 	}
-	
-	public void put(String key, String value, String tpcOpId, int timeout) throws KVException {
-		// TODO: Implement Me for Project 4
-		return;		
-	}
 
 	public String get(String key) throws KVException {
 		// TODO: Implement Me from Project 3
 	    return null;
 	}
 	
-	public String get(String key, int timeout) throws KVException {
-		// TODO: Implement Me for Project 4
-		return null;
-	}
-	
 	public void del(String key) throws KVException {
 		// TODO: Implement Me from Project 3
 		return;
 	}	
-	
-	public void del(String key, String tpcOpId, int timeout) throws KVException {
-		// TODO: Implement Me for Project 4
-		return;
-	}
 	
 	public void ignoreNext() throws KVException {
 	    // TODO: Implement Me!
