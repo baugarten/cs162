@@ -40,7 +40,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 public class TPCMaster {
-    List<SlaveInfo> slaves;
+    TreeMap<Long, SlaveInfo> slaves;
     
 	/**
 	 * Implements NetworkHandler to handle registration requests from 
@@ -109,7 +109,7 @@ public class TPCMaster {
 			String portStr = slaveInfo.substring(cPos+1, slaveInfo.length());
 			
 			try {
-				slaveID = Long.parseLong(idStr);
+				slaveID = hashTo64bit(idStr);
 				port = Integer.parseInt(portStr);
 			} catch (NumberFormatException e) {
 				throw new KVException(new KVMessage("Registration Error: Received unparseable slave information"));
@@ -236,6 +236,21 @@ public class TPCMaster {
 	// ID of the next 2PC operation
 	private Long tpcOpId = 0L;
 	
+	private class IDComparator implements Comparator<Long>{
+
+		@Override
+		public int compare(Long arg0, Long arg1) {
+			if(isLessThanUnsigned(arg0.longValue(),arg1.longValue())){
+				return -1;
+			} else if (arg0.compareTo(arg1) == 0){
+				return 0;
+			} else {
+				return 1;
+			}
+		}
+		
+	}
+	
 	/**
 	 * Creates TPCMaster
 	 * 
@@ -245,6 +260,7 @@ public class TPCMaster {
 	public TPCMaster(int numSlaves) {
 		// Using SlaveInfos from command line just to get the expected number of SlaveServers 
 		this.numSlaves = numSlaves;
+		slaves = new TreeMap<Long,SlaveInfo>(new IDComparator());
 
 		// Create registration server
 		regServer = new SocketServer("localhost", 9090);
@@ -311,16 +327,17 @@ public class TPCMaster {
 	private SlaveInfo findFirstReplica(String key) {
 		// 64-bit hash of the key
 		long hashedKey = hashTo64bit(key.toString());
-		
-		for (int i=0; i<slaves.size(); i++) {
-			if (isLessThanUnsigned(hashedKey, slaves.get(i).slaveID)) {
-				return slaves.get(i);
+		Long keyInMap = new Long(hashedKey);
+		if(slaves.containsKey(keyInMap)){
+			return slaves.get(keyInMap);
+		} else {
+			Long replica = slaves.higherKey(keyInMap);
+			if (replica == null) {
+				return slaves.firstEntry().getValue();
+			} else {
+				return slaves.get(replica);
 			}
 		}
-
-		return slaves.get(0);
-		// and if this results in an array out of bounds
-		// that's a user error and out of our care
 	}
 	
 	/**
@@ -329,12 +346,13 @@ public class TPCMaster {
 	 * @return
 	 */
 	private SlaveInfo findSuccessor(SlaveInfo firstReplica) {
-		for (int i=0; i<slaves.size(); i++) {
-			if (slaves.get(i) == firstReplica) {
-				return slaves.get((i+1)%slaves.size());
-			}
+		Long firstReplicaID = new Long(firstReplica.slaveID);
+		Long successor = slaves.higherKey(firstReplicaID);
+		if (successor == null){
+			return slaves.firstEntry().getValue();
+		} else {
+			return slaves.get(successor);
 		}
-		return null;
 	}
 	
 	/**
