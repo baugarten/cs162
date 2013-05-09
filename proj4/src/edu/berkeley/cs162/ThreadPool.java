@@ -68,7 +68,7 @@ public class ThreadPool {
 	 * @param r job that has to be executed asynchronously
 	 * @throws InterruptedException 
 	 */
-	public void addToQueue(Runnable r) throws InterruptedException
+	public synchronized void addToQueue(Runnable r) throws InterruptedException
 	{
 	     jobs.push(r);
 	     this.notify();
@@ -116,7 +116,7 @@ class WorkerThread extends Thread {
 			try {
 				Runnable new_job = pool.getJob();
 				new_job.run();
-			} catch (InterruptedException e) {
+			} catch (Exception e) {
 				// ignore this exception
 				return;
 			}
