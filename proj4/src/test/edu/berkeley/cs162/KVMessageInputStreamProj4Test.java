@@ -1,4 +1,4 @@
-package edu.berkeley.cs162;
+package test.edu.berkeley.cs162;
 
 import static org.junit.Assert.*;
 
@@ -10,6 +10,8 @@ import java.io.PipedOutputStream;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import edu.berkeley.cs162.*;
 
 public class KVMessageInputStreamProj4Test {
 	
