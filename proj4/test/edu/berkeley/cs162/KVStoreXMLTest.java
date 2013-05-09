@@ -106,7 +106,7 @@ public class KVStoreXMLTest {
 				store.toXML()
 				);
 	}
-
+	/*
 	@Test
 	public void testRestore() throws KVException {
 		KVStore store = new KVStore();
@@ -150,4 +150,5 @@ public class KVStoreXMLTest {
 		assertEquals(store.get("key1"), "val2");
 		assertEquals(store.get("key2"), "val20");
 	}
+	*/
 }

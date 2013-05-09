@@ -1,4 +1,4 @@
-package edu.berkeley.cs162r
+package edu.berkeley.cs162;
 
 import static org.junit.Assert.*;
 
@@ -8,6 +8,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 import org.junit.Test;
 
+import edu.berkeley.cs162.KVCache;
 import edu.berkeley.cs162.KVCache.Entry;
 import edu.berkeley.cs162.KVCache.Set;
 
