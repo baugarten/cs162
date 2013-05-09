@@ -61,8 +61,6 @@ public class KVClientHandler implements NetworkHandler {
 		
 		@Override
 		public void run() {
-			// TODO: Implement Me!
-			System.out.println("Handling");
 			KVMessage message, res;
 			try {
 				message = null;
@@ -90,8 +88,6 @@ public class KVClientHandler implements NetworkHandler {
 				} else {
 					throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
 				}
-				//System.out.println(res.getKey());
-				//System.out.println(res.getValue());
 			} catch (KVException e) {
 				res = e.getMsg();
 			} catch (IOException e) {
