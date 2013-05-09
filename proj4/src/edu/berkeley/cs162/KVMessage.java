@@ -228,9 +228,11 @@ public class KVMessage implements Serializable {
    				} 
    				
    				if(attr.equals("putreq")){
+   					/*
    					if(this.key.length() > 256){
    						throw new KVException(new KVMessage("resp","Oversized key"));
    					}
+   					*/
    					
    					children = document.getElementsByTagName("Value");
    					if(children.getLength() != 1){
@@ -238,6 +240,7 @@ public class KVMessage implements Serializable {
    					}
    					valueNode = children.item(0);
    					this.value = valueNode.getTextContent();
+   					/*
    					if(this.value.length() > 256000){
    						throw new KVException(new KVMessage("resp","Oversized value"));
    					}
@@ -245,7 +248,7 @@ public class KVMessage implements Serializable {
    					if(this.value.length() == 0){
    						throw new KVException(new KVMessage("resp", "Undersized value"));
    					}
-   					
+   					*/
    					children = document.getElementsByTagName("TPCOpId");
    					if(children.getLength() > 1){
    						throw new KVException(new KVMessage("resp", "Message format incorrect"));
@@ -315,15 +318,18 @@ public class KVMessage implements Serializable {
    				if(keyEle.getLength() == 1 && valueEle.getLength() == 1 && msgEle.getLength() == 0){
    					keyNode = keyEle.item(0);
    					this.key = keyNode.getTextContent();
+   					/*
    					if(this.key.length() > 256 || this.key.length() == 0){
    						throw new KVException(new KVMessage("resp","Oversized key"));
    					}
-   					
+   					*/
    					valueNode = valueEle.item(0);
    					this.value = valueNode.getTextContent();
+   					/*
    					if(this.value.length() > 256000 || this.key.length() == 0){
    						throw new KVException(new KVMessage("resp","Oversized value"));
    					}
+   					*/
    				}
    				else if (keyEle.getLength() == 0 && valueEle.getLength() == 0 && msgEle.getLength() == 1){
    					msgNode = msgEle.item(0);

@@ -195,36 +195,6 @@ public class KVMessageInputStreamTest {
 			assertEquals("Message format incorrect", e.getMsg().getMessage());
 		}
 	}
-
-	//Error: key with size 0
-	@Test
-	public void testKVMessageInputStreamBadXMLFormat7() throws IOException {
-		try {
-			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
-			request += "<KVMessage type=\"getreq\"><Key></Key></KVMessage>";
-			out.writeObject(request);
-			kvMessage = new KVMessage(pipedIn);
-			fail();
-		} catch (KVException e){
-			assertEquals("resp", e.getMsg().getMsgType());
-			assertEquals("Undersized key", e.getMsg().getMessage());
-		}
-	}
-
-	//Error: value with size 0
-	@Test
-	public void testKVMessageInputStreamBadXMLFormat8() throws IOException {
-		try {
-			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
-			request += "<KVMessage type=\"putreq\"><Key>Cal</Key><Value></Value></KVMessage>";
-			out.writeObject(request);
-			kvMessage = new KVMessage(pipedIn);
-			fail();
-		} catch (KVException e){
-			assertEquals("resp", e.getMsg().getMsgType());
-			assertEquals("Undersized value", e.getMsg().getMessage());
-		}
-	}
 	
 	//Ignore the extra value node in a getreq
 	@Test
