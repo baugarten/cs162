@@ -84,9 +84,26 @@ public class TPCMaster {
 			public void run() {
 				// implement me
 				try {
+					KVMessage ack;
+					String response = "";
 					InputStream input = client.getInputStream();
-					SlaveInfo slave = new SlaveInfo(new KVMessage(input).getMessage());
-					slaves.put(slave.slaveID, slave);
+					KVMessage registerMsg = new KVMessage(input);
+					if (!registerMsg.getMsgType().equals("register")){
+						ack = new KVMessage("resp", "Unknown Error: Incorrect message type");
+						ack.sendMessage(client);
+						return;
+					}
+					String msg = registerMsg.getMessage(); 
+					SlaveInfo slave = new SlaveInfo(msg);
+					Long slaveID = new Long(slave.getSlaveID());
+					if(slaves.containsKey(slaveID)){
+						slaves.get(slaveID).update(slave.getHostName(), slave.getPort());
+					} else {
+						slaves.put(slaveID, slave);
+					}
+					response += "Successfully registered" + msg;
+					ack = new KVMessage("resp", response);
+					ack.sendMessage(client);
 				}
 				catch (KVException e) {
 					e.printStackTrace();
@@ -127,7 +144,7 @@ public class TPCMaster {
 			String portStr = slaveInfo.substring(cPos+1, slaveInfo.length());
 			
 			try {
-				slaveID = hashTo64bit(idStr);
+				slaveID = Long.parseLong(idStr);
 				port = Integer.parseInt(portStr);
 			} catch (NumberFormatException e) {
 				throw new KVException(new KVMessage("Registration Error: Received unparseable slave information"));
@@ -139,6 +156,20 @@ public class TPCMaster {
 		
 		public long getSlaveID() {
 			return slaveID;
+		}
+		
+		public String getHostName(){
+			return hostName;
+		}
+		
+		public int getPort(){
+			return port;
+		}
+		
+		// IS THIS THREAD-SAFE WHEN USED CONCURRENTLY WITH DOKVOPERATION?
+		public void update(String newHostName, int newPort){
+			hostName = newHostName;
+			port = newPort;
 		}
 		
 		public KVMessage doKVOperation(KVMessage op) throws KVException {
