@@ -73,7 +73,11 @@ public class TPCLog {
 	}
 	
 	public void appendAndFlush(KVMessage entry) {
-		// implement me
+		if( entries==null){
+			entries=new ArrayList<KVMessage> ();
+		}
+		entries.add(entry);
+		flushToDisk();
 	}
 
 	/**
@@ -134,7 +138,35 @@ public class TPCLog {
 	 * @throws KVException
 	 */
 	public void rebuildKeyServer() throws KVException {
-		// implement me
+		loadFromDisk();
+		for(int i =0 ; i<entries.size(); i++){
+			KVMessage entry = entries.get(i);
+			String msgType =entry.getMsgType();
+
+			if( msgType.equals("putreq") || msgType.equals("delreq")){
+				interruptedTpcOperation = entry;
+				continue;
+			}
+
+
+
+			if (msgType.equals("commit")) {
+				KVMessage interrupted = interruptedTpcOperation;
+				String interruptedMsgType = interrupted.getMsgType();
+				interruptedTpcOperation = null;
+
+				if( interruptedMsgType.equals("delreq")){
+					kvServer.del(interrupted.getKey());
+				}
+				else if( interruptedMsgType.equals("putreq")){
+					kvServer.put(interrupted.getKey(),interrupted.getValue());
+				}
+			}
+
+			else if (msgType.equals("abort")) {
+				interruptedTpcOperation = null;
+			}
+		}
 	}
 	
 	/**
