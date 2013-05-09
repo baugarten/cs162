@@ -30,6 +30,8 @@
  */
 package edu.berkeley.cs162;
 
+import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
+
 /**
  * This class defines the slave key value servers. Each individual KVServer 
  * would be a fully functioning Key-Value server. For Project 3, you would 
@@ -60,9 +62,23 @@ public class KVServer implements KeyValueInterface {
 		AutoGrader.agKVServerPutStarted(key, value);
 
 		// TODO: implement me
-
-		// Must be called before returning
-		AutoGrader.agKVServerPutFinished(key, value);
+		
+		WriteLock cacheWriteLock = dataCache.getWriteLock(key);
+		try {
+			cacheWriteLock.lock();
+			synchronized(dataStore) {
+				try {
+					dataStore.put(key, value);
+					dataCache.put(key, value);
+				} catch (KVException e) {
+					throw new KVException(new KVMessage("resp", "IO Error"));
+				}
+			}
+		} finally {
+			// Must be called before returning
+			AutoGrader.agKVServerPutFinished(key, value);
+			unlock(cacheWriteLock);
+		}
 	}
 	
 	public String get (String key) throws KVException {
@@ -70,10 +86,23 @@ public class KVServer implements KeyValueInterface {
 		AutoGrader.agKVServerGetStarted(key);
 
 		// TODO: implement me
-
-		// Must be called before returning
-		AutoGrader.agKVServerGetFinished(key);
-		return null;
+		WriteLock cacheWriteLock = dataCache.getWriteLock(key);
+		String result = null;
+		try {
+			cacheWriteLock.lock();
+			result = dataCache.get(key);
+			if (result == null) {
+				synchronized (dataStore) {
+					result = storeGet(key);
+					dataCache.put(key, result);
+				}
+			}
+		} finally {
+			// Must be called before returning
+			AutoGrader.agKVServerGetFinished(key);
+			unlock(cacheWriteLock);
+		}
+		return result;
 	}
 	
 	public void del (String key) throws KVException {
@@ -81,9 +110,58 @@ public class KVServer implements KeyValueInterface {
 		AutoGrader.agKVServerDelStarted(key);
 
 		// TODO: implement me
+		WriteLock cacheWriteLock = dataCache.getWriteLock(key);
+		try {
+			cacheWriteLock.lock();
+			synchronized (dataStore) {
+				storeGet(key); // will throw the right error if no key
+				try {
+					dataStore.del(key);
+					dataCache.del(key);
+				} catch (KVException e) {
+					throw new KVException(new KVMessage("resp", "IO Error"));
+				}
+			}
+		} finally {
+			// Must be called before returning
+			AutoGrader.agKVServerDelFinished(key);
+			unlock(cacheWriteLock);
+		}
 
 		// Must be called before returning
 		AutoGrader.agKVServerDelFinished(key);
+	}
+	
+	public KVCache getCache() {
+		return dataCache;
+	}
+
+	public KVStore getStore() {
+		return dataStore;
+	}
+	
+	private String storeGet(String key) throws KVException {
+		String value;
+		try {
+			value = dataStore.get(key);
+			if (value == null) {
+				throw new KVException(new KVMessage("resp", "Does not exist"));
+			}
+		} catch (KVException e) {
+			if (e.getMsg().getMessage().contains("does not exist in store")) {
+				throw new KVException(new KVMessage("resp", "Does not exist"));
+			} else {
+				throw new KVException(new KVMessage("resp", "IO Error"));
+			}
+
+		}
+		return value;
+	}
+	
+	private void unlock(WriteLock lock) {
+		if (lock.isHeldByCurrentThread()) {
+			lock.unlock();
+		}
 	}
 	
 	public boolean hasKey (String key) throws KVException {

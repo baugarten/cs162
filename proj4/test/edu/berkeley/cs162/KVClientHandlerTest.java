@@ -41,7 +41,7 @@ public class KVClientHandlerTest {
 	private static volatile KVStore kvStore;
 	
 	private static volatile SocketServer socketServer;
-	
+	/*
 	@Before
 	public void setUp() throws Exception {
 		final Runnable serversetup = new Runnable() {
@@ -92,4 +92,5 @@ public class KVClientHandlerTest {
 			assertEquals("Network Error: Could not receive data", e.getMsg().getMessage());
 		}
 	}
+	*/
 }
