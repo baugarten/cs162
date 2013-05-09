@@ -100,17 +100,27 @@ public class TPCMasterHandler implements NetworkHandler {
 				handleDel(msg, key);
 			} 
 			else if (msg.getMsgType().equals("ignoreNext")) {
-				// Set ignoreNext to true. PUT and DEL handlers know what to do.
-				// Implement me
-				
-				// Send back an acknowledgment
-				// Implement me
+				ignoreNext = true;
+				try {
+					msg = new KVMessage("resp", "success");
+					msg.sendMessage(client);
+				} catch (KVException e) {
+					// ignore
+				}
 			}
 			else if (msg.getMsgType().equals("commit") || msg.getMsgType().equals("abort")) {
 				// Check in TPCLog for the case when SlaveServer is restarted
 				// Implement me
 				
+				if (ignoreNext) {
+					ignoreNext = false;
+					return;
+				}
+				if (tpcLog.hasInterruptedTpcOperation()) {
+					originalMessage = tpcLog.getInterruptedTpcOperation();
+				}
 				handleMasterResponse(msg, originalMessage, aborted);
+				originalMessage = null;
 				
 				// Reset state
 				// Implement me
@@ -122,30 +132,159 @@ public class TPCMasterHandler implements NetworkHandler {
 
 		private void handlePut(KVMessage msg, String key) {
 			AutoGrader.agTPCPutStarted(slaveID, msg, key);
+			tpcLog.appendAndFlush(msg);
+			if (ignoreNext) {
+				ignoreNext = false;
+				try {
+					KVMessage ret = new KVMessage("abort", "IgnoreNext Error: SlaveServer " + slaveID + " has ignored this 2PC request during the first phase");
+					ret.setTpcOpId(msg.getTpcOpId());
+					ret.sendMessage(client);
+				} catch (KVException e) {
+					// ignore
+				}
+				AutoGrader.agTPCPutFinished(slaveID, msg, key);
+				return;
+			}
 			
-			// Store for use in the second phase
+			KVMessage message = validateMessage(msg);
+			message.setTpcOpId(msg.getTpcOpId());
+			if (message != null) {
+				try {
+					message.sendMessage(client);
+				} catch (KVException e) {
+				}
+				AutoGrader.agTPCPutFinished(slaveID, msg, key);
+				return;
+			}
 			originalMessage = new KVMessage(msg);
 			
-			// Implement me
-
+			try {
+				KVMessage resp = new KVMessage("ready");
+				resp.setTpcOpId(msg.getTpcOpId());
+				resp.sendMessage(client);
+			} catch (KVException e) {
+				// ignore
+			}
 			AutoGrader.agTPCPutFinished(slaveID, msg, key);
 		}
 		
- 		private void handleGet(KVMessage msg, String key) {
+		private KVMessage validateMessage(KVMessage msg) {
+			if (oversizedKey(msg.getKey())) {
+				try {
+					KVMessage ret = new KVMessage("abort", "Oversized key");
+					ret.setTpcOpId(msg.getTpcOpId());
+					ret.sendMessage(client);
+				} catch (KVException e) {
+					return null;
+				}
+			}
+			if (oversizedKey(msg.getValue())) {
+				try {
+					KVMessage ret = new KVMessage("abort", "Oversized value");
+					ret.setTpcOpId(msg.getTpcOpId());
+					ret.sendMessage(client);
+				} catch (KVException e) {
+					return null;
+				}
+			}
+			return null;
+		}
+
+		private boolean oversizedKey(String key) {
+			return key.length() > 256;
+		}
+
+		private void handleGet(KVMessage msg, String key) {
  			AutoGrader.agGetStarted(slaveID);
 			
- 			// Implement me
+ 			if (oversizedKey(key)) {
+				try {
+					KVMessage ret = new KVMessage("abort", "Oversized value");
+					ret.setTpcOpId(msg.getTpcOpId());
+					ret.sendMessage(client);
+				} catch (KVException e) {
+					// ignore
+				}
+	 			AutoGrader.agGetFinished(slaveID);
+				return;
+ 			}
+ 			try {
+	 			String value = keyserver.get(key);
+	 			if (value != null) {
+		 			KVMessage ret = new KVMessage("resp");
+		 			ret.setKey(key);
+		 			ret.setValue(value);
+					ret.setTpcOpId(msg.getTpcOpId());
+		 			ret.sendMessage(client);
+	 			} else {
+	 				KVMessage resp = new KVMessage("resp", "Does not exist");
+					resp.setTpcOpId(msg.getTpcOpId());
+					resp.sendMessage(client);
+	 			}
+ 			} catch (KVException e) {
+ 				//ignore
+ 			}
  			
  			AutoGrader.agGetFinished(slaveID);
 		}
 		
 		private void handleDel(KVMessage msg, String key) {
 			AutoGrader.agTPCDelStarted(slaveID, msg, key);
+			tpcLog.appendAndFlush(msg);
+			
+			if (ignoreNext) {
+				ignoreNext = false;
+				try {
+					KVMessage resp = new KVMessage("abort", "IgnoreNext Error: SlaveServer " + slaveID + " has ignored this 2PC request during the first phase");
+					resp.setTpcOpId(msg.getTpcOpId());
+					resp.sendMessage(client);
+				} catch (KVException e) {
+					// ignore
+				}
+				AutoGrader.agTPCDelFinished(slaveID, msg, key);
+				return;
+			}
+ 			if (oversizedKey(key)) {
+				try {
+					KVMessage resp = new KVMessage("abort", "Oversized value");
+					resp.setTpcOpId(msg.getTpcOpId());
+					resp.sendMessage(client);
+				} catch (KVException e) {
+					// ignore
+				}
+	 			AutoGrader.agGetFinished(slaveID);
+				return;
+ 			}
+ 			String val = null;
+ 			try {
+				val = kvServer.get(key);
+			} catch (KVException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} finally {
+				if (val == null) { // We don't have a valid key
+					try {
+						KVMessage resp = new KVMessage("abort", "Does not exist");
+						resp.setTpcOpId(msg.getTpcOpId());
+						resp.sendMessage(client);
+					} catch (KVException e) {
+						// ignore
+					}
+					AutoGrader.agTPCDelFinished(slaveID, msg, key);
+					return;
+				}
+			}
 
 			// Store for use in the second phase
 			originalMessage = new KVMessage(msg);
 			
-			// Implement me
+			try {
+				KVMessage resp = new KVMessage("ready");
+				resp.setTpcOpId(msg.getTpcOpId());
+				resp.sendMessage(client);
+			} catch (KVException e) {
+				// ignore
+			}
 			
 			AutoGrader.agTPCDelFinished(slaveID, msg, key);
 		}
@@ -159,6 +298,33 @@ public class TPCMasterHandler implements NetworkHandler {
 		 */
 		private void handleMasterResponse(KVMessage masterResp, KVMessage origMsg, boolean origAborted) {
 			AutoGrader.agSecondPhaseStarted(slaveID, origMsg, origAborted);
+			
+			tpcLog.appendAndFlush(masterResp);
+			
+			if (origAborted || masterResp.getMsgType().equals("abort")) {
+				originalMessage = null;
+				try {
+					KVMessage resp = new KVMessage("ack");
+					resp.setTpcOpId(masterResp.getTpcOpId());
+					resp.sendMessage(client);
+				} catch (KVException e) {
+					// ignore
+				}
+				AutoGrader.agSecondPhaseFinished(slaveID, origMsg, origAborted);
+				return;
+			}
+			if (masterResp.getMsgType().equals("commit")) {
+				if (originalMessage.getMsgType().equals("putreq")) {
+					try {
+						keyserver.put(origMsg.getKey(), origMsg.getValue());
+						KVMessage resp = new KVMessage("ack");
+						resp.setTpcOpId(masterResp.getTpcOpId());
+						resp.sendMessage(client);
+					} catch (KVException e) {
+						// return failure
+					}
+				}
+			}
 			
 			// Implement me
 			

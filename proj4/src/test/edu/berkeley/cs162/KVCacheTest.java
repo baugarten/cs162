@@ -1,4 +1,4 @@
-package edu.berkeley.cs162;
+package edu.berkeley.cs162r
 
 import static org.junit.Assert.*;
 
