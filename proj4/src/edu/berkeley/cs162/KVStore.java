@@ -30,8 +30,30 @@
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 package edu.berkeley.cs162;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.util.Collections;
 import java.util.Dictionary;
 import java.util.Hashtable;
+import java.util.List;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.xml.sax.InputSource;
 
 
 /**
@@ -107,15 +129,149 @@ public class KVStore implements KeyValueInterface {
 	}
 	
     public String toXML() throws KVException {
-        // TODO: implement me
-        return null;
+    	try {
+    		DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+    		DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+    		Document doc = docBuilder.newDocument();
+    		doc.setXmlStandalone(true);
+    		
+    		// build DOM
+    		Element kvStoreNode = doc.createElement("KVStore");
+    		doc.appendChild(kvStoreNode);
+    		
+    		List<String> keyList = Collections.list(store.keys());
+    		java.util.Collections.sort(keyList);
+    		
+    		for (String key : keyList) {
+//    			String key = keys.nextElement();
+    			String value = store.get(key);
+    			
+    			Element kvPairNode = doc.createElement("KVPair");
+    			kvStoreNode.appendChild(kvPairNode);
+    			
+    			Element keyNode = doc.createElement("Key");
+    			keyNode.setTextContent(key);
+    			kvPairNode.appendChild(keyNode);
+    			
+    			Element valueNode = doc.createElement("Value");
+    			valueNode.setTextContent(value);
+    			kvPairNode.appendChild(valueNode);
+    		}
+    		
+    		// output to string
+    		TransformerFactory transformerFactory = TransformerFactory.newInstance();
+    		Transformer transformer = transformerFactory.newTransformer();
+    	    transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+    		StringWriter writer = new StringWriter();
+    		transformer.transform(new DOMSource(doc), new StreamResult(writer));
+    		return writer.getBuffer().toString();
+    	} catch (Exception e) {
+    		System.err.println("KVStore::dumpToString: Exception building DOM: " + e);
+    	}
+		return "";
     }        
 
     public void dumpToFile(String fileName) throws KVException {
-        // TODO: implement me
+        String xmlContent = toXML();
+        
+        try {
+	    	FileWriter fw = new FileWriter(fileName);
+			BufferedWriter bw = new BufferedWriter(fw);
+			bw.write(xmlContent);
+			bw.close();
+        } catch (IOException e) {
+        	System.err.println("KVStore::dumpToFile: file output exception: " + e);
+        }
     }
 
     public void restoreFromFile(String fileName) throws KVException{
-        // TODO: implement me
+    	BufferedReader br = null;
+        try {
+        	StringBuilder sb = new StringBuilder();
+        	br = new BufferedReader(new FileReader(fileName));
+        	String line = br.readLine();
+        	
+        	while (line != null) {
+        		sb.append(line);
+        		sb.append("\n");
+        		
+        		line = br.readLine();
+        	}
+        	
+        	restoreFromString(sb.toString());
+        } catch (IOException e) {
+        	System.err.println("KVStore::dumpToString: exception reading file: " + e);
+        } finally {
+        	if (br != null) {
+        		try {
+        			br.close();
+	        	} catch (IOException e) {        		
+	        	}
+        	}
+        }
     }
+    
+    public void restoreFromString(String xmlContent) {
+    	try {
+	    	DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+	        DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+	
+	        Document doc = docBuilder.parse(new InputSource(new StringReader(xmlContent)));
+	        
+	        resetStore();
+	        
+	        Node root = doc.getFirstChild();
+	        if (root.getNodeName() != "KVStore") {
+	        	System.err.println("KVStore::restoreFromString: input DOM structure error: root not KVStore");
+	        	return;
+	        }
+	        
+	        for (Node kvPairNode=root.getFirstChild(); kvPairNode!=null; kvPairNode=kvPairNode.getNextSibling()) {
+	        	String nodeKey = null, nodeValue = null;
+
+	        	if (kvPairNode.getNodeName().startsWith("#")) {
+	        		continue;
+	        	} else if (kvPairNode.getNodeName() != "KVPair") {
+	        		System.err.println("KVStore::restoreFromString: input DOM structure error: expected KVPair, got " + kvPairNode.getNodeName());
+		        	return;	        		
+	        	}
+	        	
+	        	for (Node kvAttrNode=kvPairNode.getFirstChild(); kvAttrNode!=null; kvAttrNode=kvAttrNode.getNextSibling()) {
+	        		String attrType = kvAttrNode.getNodeName();
+	        		if (attrType.startsWith("#")) {
+	        			continue;
+	        		} else if (attrType == "Key") {
+	        			if (nodeKey != null) {
+	        				System.err.println("KVStore::restoreFromString: input DOM structure error: duplicate Key");
+				        	return;	        				
+	        			} else {
+	        				nodeKey = kvAttrNode.getTextContent();
+	        			}
+	        		} else if (attrType == "Value") {
+	        			if (nodeValue != null) {
+	        				System.err.println("KVStore::restoreFromString: input DOM structure error: duplicate Value");
+				        	return;	        				
+	        			} else {
+	        				nodeValue = kvAttrNode.getTextContent();
+	        			}
+	        		} else {
+	        			System.err.println("KVStore::restoreFromString: input DOM structure error: unexpected KVPair attr");
+			        	return;	        			
+	        		}
+	        	}
+	        	
+        		if (nodeKey == null || nodeValue == null) {
+        			System.err.println("KVStore::restoreFromString: input DOM structure error: missing key or value");
+		        	return;
+        		}
+        		
+        		store.put(nodeKey, nodeValue);
+	        }
+	        
+	        
+    	} catch (Exception e) {
+    		System.err.println("KVStore::restoreFromString: Exception building DOM: " + e);
+    	}
+	}
 }
+
