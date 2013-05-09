@@ -167,12 +167,12 @@ public class TPCMaster {
 		}
 		
 		// IS THIS THREAD-SAFE WHEN USED CONCURRENTLY WITH DOKVOPERATION?
-		public void update(String newHostName, int newPort){
+		public synchronized void update(String newHostName, int newPort){
 			hostName = newHostName;
 			port = newPort;
 		}
 		
-		public KVMessage doKVOperation(KVMessage op) throws KVException {
+		public synchronized KVMessage doKVOperation(KVMessage op) throws KVException {
 			try {
 				Socket socket = new Socket(this.hostName, this.port);
 				socket.setSoTimeout(TIMEOUT_MILLISECONDS);
@@ -183,60 +183,53 @@ public class TPCMaster {
 				
 				return response;
 			} catch (SocketTimeoutException e) {
-				return null;
+				throw new KVException(new KVMessage("resp", "Network Error: Timeout"));
 			} catch (IOException e) {
 				throw new KVException(new KVMessage("resp", "Network Error: Could not create socket"));
 			}
 		}
 		
-		String slaveGet(String key) {
-			try {
-				KVMessage msg = new KVMessage("getreq");
-				msg.setKey(key);
-				KVMessage resp = doKVOperation(msg);
-				if (resp != null && resp.getMsgType() == "resp" && resp.getKey() == key) {
-					return resp.getValue();
-				} else {
-					return null;
-				}
-			} catch (KVException e) {
-				return null;
+		String slaveGet(String key) throws KVException{
+			KVMessage msg = new KVMessage("getreq");
+			msg.setKey(key);
+			KVMessage resp = doKVOperation(msg);
+			if (resp.getKey() != key) {
+				throw new KVException(new KVMessage("resp", "Invalid key from slave"));
+			}
+			if (resp.getMsgType() != "resp" || resp.getValue() == null) {
+				throw new KVException(resp);
+			}	
+			return resp.getValue();
+		}
+		
+		void tpcPutVote(String key, String val, String tpcOpId) throws KVException {
+			KVMessage msg = new KVMessage("putreq");
+			msg.setKey(key);
+			msg.setValue(val);
+			msg.setTpcOpId(tpcOpId);
+			KVMessage resp = doKVOperation(msg);
+			if (resp.getMsgType() == "abort") {
+				throw new KVException(resp);
+			} else if (resp.getMsgType() != "ready") {
+				throw new KVException(new KVMessage("resp", "Invalid response from slave"));
+			}
+		}
+
+		// this function RETURNS if the decision was to commit, otherwise it
+		// THROWS a KVException on abort or other failure
+		void tpcDeleteVote(String key, String tpcOpId) throws KVException {
+			KVMessage msg = new KVMessage("delreq");
+			msg.setKey(key);
+			msg.setTpcOpId(tpcOpId);
+			KVMessage resp = doKVOperation(msg);
+			if (resp.getMsgType() == "abort") {
+				throw new KVException(resp);
+			} else if (resp.getMsgType() != "ready") {
+				throw new KVException(new KVMessage("resp", "Invalid response from slave"));
 			}
 		}
 		
-		boolean tpcPutVote(String key, String val, String tpcOpId) {
-			try {
-				KVMessage msg = new KVMessage("putreq");
-				msg.setKey(key);
-				msg.setValue(val);
-				msg.setTpcOpId(tpcOpId);
-				KVMessage resp = doKVOperation(msg);
-				if (resp != null && resp.getMsgType() == "ready") {
-					return true;
-				} else {
-					return false;
-				}
-			} catch (KVException e) {
-				return false;
-			}
-		}
-		
-		boolean tpcDeleteVote(String key, String tpcOpId) {
-			try {
-				KVMessage msg = new KVMessage("delreq");
-				msg.setKey(key);
-				msg.setTpcOpId(tpcOpId);
-				KVMessage resp = doKVOperation(msg);
-				if (resp != null && resp.getMsgType() == "ready") {
-					return true;
-				} else {
-					return false;
-				}
-			} catch (KVException e) {
-				return false;
-			}
-		}
-		
+		// this RETRIES until success
 		void tpcCommit(String tpcOpId) {
 			boolean done = false;
 			while (!done) {
@@ -244,7 +237,7 @@ public class TPCMaster {
 					KVMessage msg = new KVMessage("commit");
 					msg.setTpcOpId(tpcOpId);
 					KVMessage resp = doKVOperation(msg);
-					if (resp != null && resp.getMsgType() == "ack" && resp.getTpcOpId() == tpcOpId) {
+					if (resp.getMsgType() == "ack" && resp.getTpcOpId() == tpcOpId) {
 						done = true;
 					}
 				} catch (KVException e) {
@@ -253,6 +246,7 @@ public class TPCMaster {
 			}
 		}
 		
+		// this RETRIES until success
 		void tpcAbort(String tpcOpId) {
 			boolean done = false;
 			while (!done) {
@@ -260,7 +254,7 @@ public class TPCMaster {
 					KVMessage msg = new KVMessage("abort");
 					msg.setTpcOpId(tpcOpId);
 					KVMessage resp = doKVOperation(msg);
-					if (resp != null && resp.getMsgType() == "ack" && resp.getTpcOpId() == tpcOpId) {
+					if (resp.getMsgType() == "ack" && resp.getTpcOpId() == tpcOpId) {
 						done = true;
 					}
 				} catch (KVException e) {
@@ -453,7 +447,23 @@ public class TPCMaster {
 			throw new KVException(new KVMessage("Internal: performTPCOperation failed: InterruptedException"));
 		}
 		
-		boolean doCommit = slaveVote1.returnVal && slaveVote2.returnVal;
+		KVMessage slave1Err = slaveVote1.error, slave2Err = slaveVote2.error;
+		KVMessage finalErr = null;
+		boolean doCommit;
+		if (slave1Err == null && slave2Err == null) {
+			doCommit = true;
+		} else {
+			if (slave1Err != null && slave2Err != null) {
+				finalErr = new KVMessage("resp", "@" + slave1.getSlaveID() + ":=" + slave1Err.getMessage() + "\n"
+						+ "@" + slave2.getSlaveID() + ":=" + slave2Err.getMessage());
+			} else if (slave1Err == null && slave2Err != null) {
+				finalErr = new KVMessage("resp", "@" + slave2.getSlaveID() + ":=" + slave2Err.getMessage());
+			} else if (slave1Err != null && slave2Err == null) {
+				finalErr = new KVMessage("resp", "@" + slave1.getSlaveID() + ":=" + slave1Err.getMessage());
+			}
+			doCommit = false;
+		}
+		
 		SlaveDecisionRunnable slaveDecision1 = new SlaveDecisionRunnable(slave1, tpcOpId, doCommit);
 		SlaveDecisionRunnable slaveDecision2 = new SlaveDecisionRunnable(slave2, tpcOpId, doCommit);
 		slaveThread1 = new Thread(slaveDecision1);
@@ -482,7 +492,7 @@ public class TPCMaster {
 		if (!doCommit) {
 			masterLock.unlock();
 			AutoGrader.agPerformTPCOperationFinished(isPutReq);
-			throw new KVException(new KVMessage("Internal: performTPCOperation failed: TPC refused"));
+			throw new KVException(finalErr);
 		}
 		
 		masterLock.unlock();
@@ -512,7 +522,7 @@ public class TPCMaster {
 	}
 	
 	public class SlaveVoteRunnable implements Runnable {
-		boolean returnVal = false;
+		KVMessage error = null;
 		
 		SlaveInfo slave;
 		String key, val, tpcOpId;
@@ -528,10 +538,14 @@ public class TPCMaster {
 		
 		@Override
 		public void run() {
-			if (isPutReq) {
-				returnVal = slave.tpcPutVote(key, val, tpcOpId);
-			} else {	// delete req
-				returnVal = slave.tpcDeleteVote(key, tpcOpId);
+			try {
+				if (isPutReq) {
+					slave.tpcPutVote(key, val, tpcOpId);
+				} else {	// delete req
+					slave.tpcDeleteVote(key, tpcOpId);
+				}
+			} catch (KVException e) {
+				error = e.getMsg();
 			}
 		}
 	}
@@ -580,21 +594,24 @@ public class TPCMaster {
 			throw new KVException(new KVMessage("Internal: performTPCOperation failed: InterruptedException"));
 		}
 		
-		String returned;
+		String returned = null;
+		KVMessage error = null;
 		if (slaveGet1.done) {
 			returned = slaveGet1.returnVal;
+			error = slaveGet1.error;
 		} else if (slaveGet2.done) {
-			returned = slaveGet1.returnVal;
-		} else {
+			returned = slaveGet2.returnVal;
+			error = slaveGet2.error;
+		}
+		
+		if (returned == null || error != null) {
 			masterLock.unlock();
 			AutoGrader.aghandleGetFinished();
-			throw new KVException(new KVMessage("Internal: performTPCOperation failed: This really shouldn't happen"));
+			throw new KVException(error);
 		}
 		
 		// update cache
-		if (returned != null) {
-			masterCache.put(key, returned);
-		}
+		masterCache.put(key, returned);
 		
 		masterLock.unlock();
 		
@@ -604,6 +621,7 @@ public class TPCMaster {
 	
 	public class SlaveGetRunnable implements Runnable {
 		String returnVal = null;
+		KVMessage error = null;
 		boolean done = false;
 		Semaphore masterWake;
 		
@@ -618,7 +636,11 @@ public class TPCMaster {
 		
 		@Override
 		public void run() {
-			returnVal = slave.slaveGet(key);
+			try {
+				returnVal = slave.slaveGet(key);
+			} catch (KVException e) {
+				error = e.getMsg();
+			}
 			done = true;
 			masterWake.release();
 		}
