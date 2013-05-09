@@ -62,6 +62,46 @@ public class KVClientHandler implements NetworkHandler {
 		@Override
 		public void run() {
 			// TODO: Implement Me!
+			System.out.println("Handling");
+			KVMessage message, res;
+			try {
+				message = null;
+				res = new KVMessage("resp");
+			} catch (KVException e) {
+				res = e.getMsg();
+				try {
+					res.sendMessage(client);
+					return;
+				} catch (KVException e1) {
+					return;
+				}
+			}
+			try {
+				message = new KVMessage(client.getInputStream());
+				if ("getreq".equals(message.getMsgType())) {
+					res.setKey(message.getKey());
+					res.setValue(tpcMaster.handleGet(message));
+				} else if ("putreq".equals(message.getMsgType())) {
+					tpcMaster.performTPCOperation(message, true);
+					res.setMessage("Success");
+				} else if ("delreq".equals(message.getMsgType())) {
+					tpcMaster.performTPCOperation(message, false);
+					res.setMessage("Success");
+				} else {
+					throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
+				}
+				//System.out.println(res.getKey());
+				//System.out.println(res.getValue());
+			} catch (KVException e) {
+				res = e.getMsg();
+			} catch (IOException e) {
+				res.setMessage("Network Error: Could not receive data");
+			}
+			try {
+				res.sendMessage(client);
+			} catch (KVException e) {
+				e.printStackTrace();
+			}
 		}
 		
 		public ClientHandler(Socket client) {
