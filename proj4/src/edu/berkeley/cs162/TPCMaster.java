@@ -84,8 +84,7 @@ public class TPCMaster {
 				// implement me
 				try {
 					InputStream input = client.getInputStream();
-					String info= new Scanner(input).next();
-					SlaveInfo slave = new SlaveInfo(new KVMessage(info).getMessage());
+					SlaveInfo slave = new SlaveInfo(new KVMessage(input).getMessage());
 					slaves.put(slave.slaveID, slave);
 				}
 				catch (KVException e) {
