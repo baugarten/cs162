@@ -31,6 +31,7 @@
 package edu.berkeley.cs162;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
@@ -376,7 +377,7 @@ public class TPCMaster {
 	 * @return
 	 */
 	private SlaveInfo findSuccessor(SlaveInfo firstReplica) {
-		Long firstReplicaID = new Long(firstReplica.slaveID);
+		Long firstReplicaID = new Long(firstReplica.getSlaveID());
 		Long successor = slaves.higherKey(firstReplicaID);
 		if (successor == null){
 			return slaves.firstEntry().getValue();
