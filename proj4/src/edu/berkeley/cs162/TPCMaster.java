@@ -62,11 +62,17 @@ public class TPCMaster {
 
 		@Override
 		public void handle(Socket client) throws IOException {
-			// implement me
+			try {
+				Runnable r = new RegistrationHandler(client);
+				threadpool.addToQueue(r);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+
 		}
-		
+
 		private class RegistrationHandler implements Runnable {
-			
+
 			private Socket client = null;
 
 			public RegistrationHandler(Socket client) {
@@ -76,6 +82,18 @@ public class TPCMaster {
 			@Override
 			public void run() {
 				// implement me
+				try {
+					InputStream input = client.getInputStream();
+					String info= new Scanner(input).next();
+					SlaveInfo slave = new SlaveInfo(info);
+					slaves.put(slave.slaveID, slave);
+				}
+				catch (KVException e) {
+					e.printStackTrace();
+				}
+				catch (IOException e) {
+					e.printStackTrace();
+				}
 			}
 		}	
 	}
@@ -282,7 +300,20 @@ public class TPCMaster {
 	 */
 	public void run() {
 		AutoGrader.agTPCMasterStarted();
-		// implement me
+		//implement me
+		regServer.addHandler(new TPCRegistrationHandler());
+		Thread t =new Thread(new Runnable() {
+			public void run() {
+				try {
+					regServer.connect();
+					regServer.run();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		});
+		t.start();
+
 		AutoGrader.agTPCMasterFinished();
 	}
 	
