@@ -101,8 +101,9 @@ public class TPCMaster {
 					} else {
 						slaves.put(slaveID, slave);
 					}
-					response += "Successfully registered" + msg;
+					response += "Successfully registered " + msg;
 					ack = new KVMessage("resp", response);
+					System.out.println(response);
 					ack.sendMessage(client);
 				}
 				catch (KVException e) {
