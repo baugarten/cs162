@@ -295,10 +295,6 @@ public class TPCMaster {
 		
 	}
 	
-	public static void main(String[] args){
-		TPCMaster master = new TPCMaster(3);
-		master.run();
-	}
 	/**
 	 * Creates TPCMaster
 	 * 
