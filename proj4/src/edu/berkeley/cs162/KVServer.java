@@ -85,7 +85,6 @@ public class KVServer implements KeyValueInterface {
 		// Must be called before anything else
 		AutoGrader.agKVServerGetStarted(key);
 
-		// TODO: implement me
 		WriteLock cacheWriteLock = dataCache.getWriteLock(key);
 		String result = null;
 		try {
@@ -94,7 +93,9 @@ public class KVServer implements KeyValueInterface {
 			if (result == null) {
 				synchronized (dataStore) {
 					result = storeGet(key);
-					dataCache.put(key, result);
+					if (result != null) {
+						dataCache.put(key, result);
+					}
 				}
 			}
 		} finally {
@@ -141,20 +142,22 @@ public class KVServer implements KeyValueInterface {
 	}
 	
 	private String storeGet(String key) throws KVException {
-		String value;
+		String value = null;
 		try {
 			value = dataStore.get(key);
 			if (value == null) {
-				throw new KVException(new KVMessage("resp", "Does not exist"));
+				return value;
+				//throw new KVException(new KVMessage("resp", "Does not exist"));
 			}
 		} catch (KVException e) {
-			if (e.getMsg().getMessage().contains("does not exist in store")) {
+			return null;
+			/*if (e.getMsg().getMessage().contains("does not exist in store")) {
 				throw new KVException(new KVMessage("resp", "Does not exist"));
 			} else {
 				throw new KVException(new KVMessage("resp", "IO Error"));
-			}
+			}*/
 
-		}
+		} 
 		return value;
 	}
 	

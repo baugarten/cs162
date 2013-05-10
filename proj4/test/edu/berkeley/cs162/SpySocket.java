@@ -1,6 +1,7 @@
 package edu.berkeley.cs162;
 
 import java.net.Socket;
+import java.util.Scanner;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -31,13 +32,25 @@ public class SpySocket extends Socket {
 	
 	@Override
 	public OutputStream getOutputStream() {
-		output = new ByteArrayOutputStream();
+		System.out.println("OutputStream requested");
+		output = new ByteArrayOutputStream() {
+			@Override
+			public void write(byte[] b) throws IOException {
+				Scanner s = new Scanner(new ByteArrayInputStream(b), "UTF-8").useDelimiter("\\A");
+				String write = s.hasNext() ? s.next() : "";
+				System.out.println("Writing " + write);
+				super.write(b);
+				
+			}
+		};
 		return output;
 	}
 	
 	public KVMessage getOutputMessage() {
 		try {
-			return new KVMessage(new ByteArrayInputStream(output.toString().getBytes("UTF-8")));
+			String out= output.toString();
+			System.out.println("getOutputMessage");
+			return new KVMessage(new ByteArrayInputStream(out.getBytes("UTF-8")));
 		} catch (Exception e) {
 			return null;
 		}

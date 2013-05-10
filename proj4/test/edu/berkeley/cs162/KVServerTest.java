@@ -1,4 +1,4 @@
-package test.edu.berkeley.cs162;
+package edu.berkeley.cs162;
 
 import static org.junit.Assert.*;
 
@@ -22,6 +22,7 @@ public class KVServerTest {
 		kvStore = kvServer.getStore();
 	}
 	
+	@Test
 	public void testGet() throws Exception {
 		assertEquals(null, kvServer.get("not a key"));
 	}
@@ -44,35 +45,15 @@ public class KVServerTest {
 		kvServer.put("key2", "anothervalue");
 		assertEquals("value", kvServer.get("key"));
 		kvServer.del("key");
-		try {
 			assertEquals(null, kvServer.get("key"));
-			fail();
-		} catch (KVException e) {
-			// Expected
-		}
 		kvServer.put("key", "what what value");
 		assertEquals("what what value", kvServer.get("key"));
 		kvServer.del("key");
-		try {
 			assertEquals(null, kvServer.get("key"));
-			fail();
-		} catch (KVException e) {
-			// Expected
-		}
 		kvServer.del("anotherkey");
 		kvServer.del("key2");
-		try {
 			kvServer.get("anotherkey");
-			fail();
-		} catch (KVException e) {
-			// Expected
-		}
-		try {
 			kvServer.get("key2");
-			fail();
-		} catch (KVException e) {
-			// Expected
-		}
 	}
 	
 	@Test

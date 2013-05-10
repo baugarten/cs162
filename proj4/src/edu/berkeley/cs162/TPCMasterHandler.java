@@ -95,7 +95,6 @@ public class TPCMasterHandler implements NetworkHandler {
 
 			// Parse the message and do stuff 
 			String key = msg.getKey();
-			
 			if (msg.getMsgType().equals("putreq")) {
 				handlePut(msg, key);
 			}
@@ -130,6 +129,12 @@ public class TPCMasterHandler implements NetworkHandler {
 				
 				// Reset state
 				// Implement me
+			} else {
+				try {
+					new KVMessage("resp", "Unknown Error: invalid message type").sendMessage(client);
+				} catch (KVException e) {
+					e.printStackTrace();
+				}
 			}
 			
 			// Finally, close the connection
@@ -138,6 +143,7 @@ public class TPCMasterHandler implements NetworkHandler {
 
 		private void handlePut(KVMessage msg, String key) {
 			AutoGrader.agTPCPutStarted(slaveID, msg, key);
+			aborted = true;
 			tpcLog.appendAndFlush(msg);
 			if (ignoreNext) {
 				ignoreNext = false;
@@ -152,19 +158,11 @@ public class TPCMasterHandler implements NetworkHandler {
 				return;
 			}
 			
-			KVMessage message = validateMessage(msg);
-			message.setTpcOpId(msg.getTpcOpId());
-			if (message != null) {
-				try {
-					message.sendMessage(client);
-				} catch (KVException e) {
-				}
-				AutoGrader.agTPCPutFinished(slaveID, msg, key);
-				return;
-			}
+			validateMessage(msg);
 			originalMessage = new KVMessage(msg);
 			
 			try {
+				aborted = false;
 				KVMessage resp = new KVMessage("ready");
 				resp.setTpcOpId(msg.getTpcOpId());
 				resp.sendMessage(client);
@@ -175,7 +173,7 @@ public class TPCMasterHandler implements NetworkHandler {
 		}
 		
 		private KVMessage validateMessage(KVMessage msg) {
-			if (oversizedKey(msg.getKey())) {
+			if (oversizedKey(msg)) {
 				try {
 					KVMessage ret = new KVMessage("abort", "Oversized key");
 					ret.setTpcOpId(msg.getTpcOpId());
@@ -184,7 +182,7 @@ public class TPCMasterHandler implements NetworkHandler {
 					return null;
 				}
 			}
-			if (oversizedKey(msg.getValue())) {
+			if (oversizedValue(msg)) {
 				try {
 					KVMessage ret = new KVMessage("abort", "Oversized value");
 					ret.setTpcOpId(msg.getTpcOpId());
@@ -193,19 +191,21 @@ public class TPCMasterHandler implements NetworkHandler {
 					return null;
 				}
 			}
-			return null;
+			return msg;
 		}
 
-		private boolean oversizedKey(String key) {
-			return key.length() > 256;
+		private boolean oversizedKey(KVMessage msg) {
+			return msg.getKey().length() > 256;
+		}
+		private boolean oversizedValue(KVMessage msg) {
+			return msg.getValue().length() > 256000;
 		}
 
 		private void handleGet(KVMessage msg, String key) {
  			AutoGrader.agGetStarted(slaveID);
-			
- 			if (oversizedKey(key)) {
+ 			if (oversizedKey(msg)) {
 				try {
-					KVMessage ret = new KVMessage("abort", "Oversized value");
+					KVMessage ret = new KVMessage("abort", "Oversized key");
 					ret.setTpcOpId(msg.getTpcOpId());
 					ret.sendMessage(client);
 				} catch (KVException e) {
@@ -214,8 +214,19 @@ public class TPCMasterHandler implements NetworkHandler {
 	 			AutoGrader.agGetFinished(slaveID);
 				return;
  			}
+ 			String value = null;
  			try {
-	 			String value = keyserver.get(key);
+ 				value = keyserver.get(key);
+ 			} catch (KVException e) {
+ 				KVMessage message = e.getMsg();
+ 				message.setTpcOpId(message.getTpcOpId());
+ 				try {
+					message.sendMessage(client);
+				} catch (KVException e1) {
+					e1.printStackTrace();
+				}
+ 			}
+ 			try {
 	 			if (value != null) {
 		 			KVMessage ret = new KVMessage("resp");
 		 			ret.setKey(key);
@@ -241,6 +252,7 @@ public class TPCMasterHandler implements NetworkHandler {
 			if (ignoreNext) {
 				ignoreNext = false;
 				try {
+					aborted = true;
 					KVMessage resp = new KVMessage("abort", "IgnoreNext Error: SlaveServer " + slaveID + " has ignored this 2PC request during the first phase");
 					resp.setTpcOpId(msg.getTpcOpId());
 					resp.sendMessage(client);
@@ -250,8 +262,9 @@ public class TPCMasterHandler implements NetworkHandler {
 				AutoGrader.agTPCDelFinished(slaveID, msg, key);
 				return;
 			}
- 			if (oversizedKey(key)) {
+ 			if (oversizedKey(msg)) {
 				try {
+					aborted = true;
 					KVMessage resp = new KVMessage("abort", "Oversized value");
 					resp.setTpcOpId(msg.getTpcOpId());
 					resp.sendMessage(client);
@@ -265,11 +278,11 @@ public class TPCMasterHandler implements NetworkHandler {
  			try {
 				val = kvServer.get(key);
 			} catch (KVException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} finally {
 				if (val == null) { // We don't have a valid key
 					try {
+						aborted = true;
 						KVMessage resp = new KVMessage("abort", "Does not exist");
 						resp.setTpcOpId(msg.getTpcOpId());
 						resp.sendMessage(client);
@@ -285,6 +298,7 @@ public class TPCMasterHandler implements NetworkHandler {
 			originalMessage = new KVMessage(msg);
 			
 			try {
+				aborted = false;
 				KVMessage resp = new KVMessage("ready");
 				resp.setTpcOpId(msg.getTpcOpId());
 				resp.sendMessage(client);
@@ -350,7 +364,7 @@ public class TPCMasterHandler implements NetworkHandler {
 		try {
 			threadpool.addToQueue(r);
 		} catch (InterruptedException e) {
-			// TODO: HANDLE ERROR
+			e.printStackTrace();
 			return;
 		}		
 		AutoGrader.agFinishedTPCRequest(slaveID);
