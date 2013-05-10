@@ -91,7 +91,7 @@ public class TPCLog {
 			inputStream = new ObjectInputStream(new FileInputStream(logPath));			
 			entries = (ArrayList<KVMessage>) inputStream.readObject();
 		} catch (Exception e) {
-			e.printStackTrace();
+			//e.printStackTrace();
 		} finally {
 			// If log never existed, there are no entries
 			if (entries == null) {

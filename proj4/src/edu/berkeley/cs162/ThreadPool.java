@@ -68,7 +68,7 @@ public class ThreadPool {
 	 * @param r job that has to be executed asynchronously
 	 * @throws InterruptedException 
 	 */
-	public void addToQueue(Runnable r) throws InterruptedException
+	public synchronized void addToQueue(Runnable r) throws InterruptedException
 	{
 	     jobs.push(r);
 	     this.notify();

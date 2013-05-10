@@ -101,8 +101,9 @@ public class TPCMaster {
 					} else {
 						slaves.put(slaveID, slave);
 					}
-					response += "Successfully registered" + msg;
+					response += "Successfully registered " + msg;
 					ack = new KVMessage("resp", response);
+					System.out.println(response);
 					ack.sendMessage(client);
 				}
 				catch (KVException e) {
@@ -294,6 +295,10 @@ public class TPCMaster {
 		
 	}
 	
+	public static void main(String[] args){
+		TPCMaster master = new TPCMaster(3);
+		master.run();
+	}
 	/**
 	 * Creates TPCMaster
 	 * 
@@ -306,7 +311,12 @@ public class TPCMaster {
 		slaves = new TreeMap<Long,SlaveInfo>(new IDComparator());
 
 		// Create registration server
-		regServer = new SocketServer("localhost", 9090);
+		try {
+			regServer = new SocketServer(InetAddress.getLocalHost().getHostAddress(), 9090);
+		} catch (UnknownHostException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 	
 	/**

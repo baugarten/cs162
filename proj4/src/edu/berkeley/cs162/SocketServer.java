@@ -72,7 +72,9 @@ public class SocketServer {
 			server.bind(new InetSocketAddress(hostname, port));
 		} else {
 			server.bind(new InetSocketAddress(hostname, 0));
+			port = server.getLocalPort();
 		}
+		
 		open = true;
 	}
 	

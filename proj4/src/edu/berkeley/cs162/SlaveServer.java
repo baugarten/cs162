@@ -78,6 +78,7 @@ public class SlaveServer {
 		handler.registerWithMaster(masterHostName, server);
 		
 		System.out.println("Starting SlaveServer at " + server.getHostname() + ":" + server.getPort());
+		
 		server.run();
 	}
 
