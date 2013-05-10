@@ -343,6 +343,15 @@ public class TPCMasterHandler implements NetworkHandler {
 					} catch (KVException e) {
 						// return failure
 					}
+				} else {
+					try {
+						keyserver.del(origMsg.getKey());
+						KVMessage resp = new KVMessage("ack");
+						resp.setTpcOpId(masterResp.getTpcOpId());
+						resp.sendMessage(client);
+					} catch (KVException e) {
+						// ignore
+					}
 				}
 			}
 			

@@ -19,7 +19,7 @@ public class TPCMasterHandlerTest {
 	}
 	
 	@Test
-	public synchronized void testGet() throws Exception {
+	public void testGet() throws Exception {
 		SpySocket spyerer = new SpySocket();
 		KVMessage msg = new KVMessage("putreq");
 		msg.setKey("balls");
@@ -66,8 +66,91 @@ public class TPCMasterHandlerTest {
 		expected.setValue("yes");
 		Assert.assertEquals(expected, result);
 	}
+	
+	@Test
+	public void testAbort() throws Exception {
+		KVMessage msg = new KVMessage("putreq");
+		msg.setKey("key");
+		msg.setValue("value");
+		msg.setTpcOpId("5");
+		handle(msg);
+		msg = new KVMessage("abort");
+		msg.setTpcOpId("5");
+		handle(msg);
+		msg = new KVMessage("getreq");
+		msg.setKey("key");
+		KVMessage resp = handle(msg);
+		KVMessage expected = new KVMessage("resp");
+		expected.setMessage("Does not exist");
+		Assert.assertEquals(expected, resp);
+	}
+	
+	@Test
+	public void testDelete() throws Exception {
+		KVMessage msg = new KVMessage("delreq");
+		msg.setKey("key");
+		msg.setTpcOpId("5");
+		KVMessage resp = handle(msg);
+		KVMessage expected = new KVMessage("abort");
+		expected.setTpcOpId("5");
+		expected.setMessage("Does not exist");
+		Assert.assertEquals(expected, resp);
+		
+		// Now put a message
+		msg = new KVMessage("putreq");
+		msg.setKey("key");
+		msg.setValue("value");
+		msg.setTpcOpId("5");
+		handle(msg);
+		msg = new KVMessage("commit");
+		msg.setTpcOpId("5");
+		handle(msg);
+		
+		// Message commited. Lets get it.
+		msg = new KVMessage("getreq");
+		msg.setKey("key");
+		resp = handle(msg);
+		expected = new KVMessage("resp");
+		expected.setKey("key");
+		expected.setValue("value");
+		Assert.assertEquals(expected, resp);
+		
+		// Now lets try to phase 1 delete it
+		msg = new KVMessage("delreq");
+		msg.setKey("key");
+		msg.setTpcOpId("10");
+		resp = handle(msg);
+		expected = new KVMessage("ready");
+		expected.setTpcOpId("10");
+		Assert.assertEquals(expected, resp);
+		
+		// Lets try to get it again
+		msg = new KVMessage("getreq");
+		msg.setKey("key");
+		resp = handle(msg);
+		expected = new KVMessage("resp");
+		expected.setKey("key");
+		expected.setValue("value");
+		Assert.assertEquals(expected, resp);
+		
+		// Now lets actually delete it
+		msg = new KVMessage("commit");
+		msg.setTpcOpId("10");
+		resp = handle(msg);
+		expected = new KVMessage("ack");
+		expected.setTpcOpId("10");
+		Assert.assertEquals(expected, resp);
+		
+		// Lets try to get it again, should fail
+		msg = new KVMessage("getreq");
+		msg.setKey("key");
+		resp = handle(msg);
+		expected = new KVMessage("resp");
+		expected.setMessage("Does not exist");
+		Assert.assertEquals(expected, resp);
+	}
 
-	private KVMessage handle(KVMessage msg) throws IOException, InterruptedException {
+	private synchronized KVMessage handle(KVMessage msg) throws IOException, InterruptedException {
 		SpySocket sock = new SpySocket();
 		sock.setKVMessage(msg);
 		handler.handle(sock);
