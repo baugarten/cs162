@@ -53,7 +53,7 @@ public class TPCMasterTest {
 		threads.add(me);
 		me.start();
 		
-		Thread.sleep(250);
+		Thread.sleep(100);
 		
 		slaveServers.clear();
 		for (int i=0; i<3; i++) {
@@ -95,6 +95,7 @@ public class TPCMasterTest {
 			threads.add(me);
 			me.start();
 		}
+		Thread.sleep(100);
 	}
 
 	@SuppressWarnings("deprecation")
@@ -107,8 +108,179 @@ public class TPCMasterTest {
 
 	@Test
 	public void testHandleGet() throws KVException {
+		String resp;
+		// try invalid get
+		System.out.println("try invalid get");
+		try {
+			tpcMaster.handleGet(
+				new KVMessage("getreq", "key1", null));
+			fail("get should throw exception");
+		} catch (KVException e) {
+			KVMessage err = e.getMsg();
+			assertEquals("resp", err.getMsgType());
+			assertEquals("Does not exist", err.getMessage());
+		}
+		
+		// try invalid del
+		System.out.println("try invalid del");
+		try {
+			tpcMaster.performTPCOperation(
+				new KVMessage("delreq", "key1", null), false);
+			fail("del should throw exception");
+		} catch (KVException e) {
+			KVMessage err = e.getMsg();
+			assertEquals("resp", err.getMsgType());
+			assertEquals("@0:=Does not exist\n@200:=Does not exist", err.getMessage());
+		}
+
+		// put key into store and verify backing store
+		System.out.println("try put");
 		tpcMaster.performTPCOperation(
 				new KVMessage("putreq", "key1", "val1"), true);
+		assertEquals("val1", slaveServers.get(2).get("key1"));
+		assertEquals("val1", slaveServers.get(0).get("key1"));
+		
+		// try cached get
+		System.out.println("try put: cached get");
+		assertEquals("val1",
+				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
+		// and networked get
+		System.out.println("try put: networked get");
+		tpcMaster.flushCache();
+		assertEquals("val1",
+				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
+		
+		// test with two keys
+		System.out.println("try put second key");
+		tpcMaster.performTPCOperation(
+				new KVMessage("putreq", "key2", "val2"), true);
+		assertEquals("val1", slaveServers.get(2).get("key1"));
+		assertEquals("val1", slaveServers.get(0).get("key1"));
+		assertEquals("val2", slaveServers.get(0).get("key2"));
+		assertEquals("val2", slaveServers.get(1).get("key2"));
+		
+		// try cached gets
+		System.out.println("try put second key: cached get");
+		assertEquals("val1",
+				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
+		assertEquals("val2",
+				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));
+		// and networked gets
+		System.out.println("try put second key: networked get");
+		tpcMaster.flushCache();
+		assertEquals("val1",
+				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
+		assertEquals("val2",
+				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));		
+		
+		// try cached overwrite
+		System.out.println("try cached overwrite");
+		tpcMaster.performTPCOperation(
+				new KVMessage("putreq", "key1", "overwrite"), true);
+		assertEquals("overwrite", slaveServers.get(2).get("key1"));
+		assertEquals("overwrite", slaveServers.get(0).get("key1"));
+		assertEquals("val2", slaveServers.get(0).get("key2"));
+		assertEquals("val2", slaveServers.get(1).get("key2"));
+		
+		// ensure cache consistent
+		System.out.println("try cached overwrite: cached get");
+		assertEquals("overwrite",
+				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
+		assertEquals("val2",
+				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));
+		// and try networked operations
+		System.out.println("try cached overwrite: networked get");
+		tpcMaster.flushCache();
+		assertEquals("overwrite",
+				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
+		assertEquals("val2",
+				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));
+		
+		// try non-cached overwrite
+		System.out.println("try non-cached overwrite");
+		tpcMaster.flushCache();
+		tpcMaster.performTPCOperation(
+				new KVMessage("putreq", "key1", "over2"), true);
+		assertEquals("over2", slaveServers.get(2).get("key1"));
+		assertEquals("over2", slaveServers.get(0).get("key1"));
+		assertEquals("val2", slaveServers.get(0).get("key2"));
+		assertEquals("val2", slaveServers.get(1).get("key2"));
+		
+		// ensure cache consistent
+		System.out.println("try non-cached overwrite: cached get");
+		assertEquals("over2",
+				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
+		assertEquals("val2",
+				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));
+		// and try networked operations
+		System.out.println("try non-cached overwrite: networked get");
+		tpcMaster.flushCache();
+		assertEquals("over2",
+				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
+		assertEquals("val2",
+				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));
+		
+		// try cached delete
+		System.out.println("try cached delete");
+		tpcMaster.performTPCOperation(
+				new KVMessage("delreq", "key2", null), false);
+		try{
+			slaveServers.get(0).get("key2");
+			fail("get should throw exception");
+		} catch (KVException e) {}
+		try{
+			slaveServers.get(1).get("key2");
+			fail("get should throw exception");
+		} catch (KVException e) {}
+		assertEquals("over2", slaveServers.get(2).get("key1"));
+		assertEquals("over2", slaveServers.get(0).get("key1"));
+		
+		// and try doing get
+		System.out.println("try cached delete: cached get");
+		assertEquals("over2",
+				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
+		try{
+			tpcMaster.handleGet(new KVMessage("getreq", "key2", null));
+			fail("get should throw exception");
+		} catch (KVException e) {}
+		// and with flushed cache
+		System.out.println("try cached delete: networked get");
+		tpcMaster.flushCache();
+		assertEquals("over2",
+				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
+		try{
+			tpcMaster.handleGet(new KVMessage("getreq", "key2", null));
+			fail("get should throw exception");
+		} catch (KVException e) {}
+		
+		// and repeat with the other one, non-cached delete
+		System.out.println("try non-cached delete");
+		tpcMaster.flushCache();
+		tpcMaster.performTPCOperation(
+				new KVMessage("delreq", "key1", null), false);
+		try{
+			slaveServers.get(2).get("key1");
+			fail("get should throw exception");
+		} catch (KVException e) {}
+		try{
+			slaveServers.get(0).get("key1");
+			fail("get should throw exception");
+		} catch (KVException e) {}
+		
+		// and try doing get
+		System.out.println("try non-cached delete: cached get");
+		try{
+			tpcMaster.handleGet(new KVMessage("getreq", "key1", null));
+			fail("get should throw exception");
+		} catch (KVException e) {}
+		// and with flushed cache
+		System.out.println("try non-cached delete: networked get");
+		tpcMaster.flushCache();
+		try{
+			tpcMaster.handleGet(new KVMessage("getreq", "key1", null));
+			fail("get should throw exception");
+		} catch (KVException e) {}
+		
 	}
 
 }

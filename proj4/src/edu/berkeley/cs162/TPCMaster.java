@@ -103,7 +103,6 @@ public class TPCMaster {
 					}
 					response += "Successfully registered " + msg;
 					ack = new KVMessage("resp", response);
-					System.out.println(response);
 					ack.sendMessage(client);
 				}
 				catch (KVException e) {
@@ -200,12 +199,14 @@ public class TPCMaster {
 			KVMessage msg = new KVMessage("getreq");
 			msg.setKey(key);
 			KVMessage resp = doKVOperation(msg);
-			if (resp.getKey() != key) {
-				throw new KVException(new KVMessage("resp", "Invalid key from slave"));
-			}
+			
 			if (!resp.getMsgType().equals("resp") || resp.getValue() == null) {
 				throw new KVException(resp);
 			}	
+			if (!resp.getKey().equals(key)) {
+				throw new KVException(new KVMessage("resp", "Invalid key from slave"));
+			}
+				
 			return resp.getValue();
 		}
 		
@@ -303,6 +304,13 @@ public class TPCMaster {
 			}
 		}
 		
+	}
+	
+	// flushes cache
+	// FOR TESTING PURPOSES ONLY
+	// most likely THREAD UNSAFE
+	public void flushCache() {
+		masterCache = new KVCache(100, 10);		
 	}
 	
 	/**
