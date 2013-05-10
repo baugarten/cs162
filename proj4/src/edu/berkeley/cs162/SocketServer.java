@@ -81,7 +81,11 @@ public class SocketServer {
 	}
 
 	public int getPort() {
-		return port;
+		if (open) {
+			return server.getLocalPort();
+		} else {
+			return port;
+		}
 	}
 
 	/**

@@ -167,6 +167,16 @@ public class KVMessage implements Serializable {
 		this.message = message;
 	}
 	
+	public KVMessage(String msgType, String key, String value) throws KVException {
+		if(!typeSet.contains(msgType)){
+			throw new KVException(new KVMessage("resp","Message format incorrect"));
+		}
+	    
+		this.msgType = msgType;
+		this.key = key;
+		this.value = value;
+	}
+	
 	 /***
      * Parse KVMessage from incoming network connection
      * @param sock
@@ -342,7 +352,7 @@ public class KVMessage implements Serializable {
    		} catch (SAXException e){
    			throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
    		} catch (IOException e){
-   			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
+   			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data" + e.getMessage()));
    		} catch (ParserConfigurationException e) {
    			throw new KVException(new KVMessage("resp", "Unknown Error: Something is wrong"));
    		} catch (ClassNotFoundException e){
