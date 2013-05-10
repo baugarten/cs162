@@ -175,14 +175,18 @@ public class TPCMaster {
 		}
 		
 		public synchronized KVMessage doKVOperation(KVMessage op) throws KVException {
-			System.out.println("KVOperation on " + this.hostName + ":" + this.port);
+			System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + "KVOperation on " + this.hostName + ":" + this.port);
 			try {
 				Socket socket = new Socket(this.hostName, this.port);
 				socket.setSoTimeout(TIMEOUT_MILLISECONDS);
 				
+				System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + op.getMsgType() + ": " + op.getMessage());
+				
 				op.sendMessage(socket);
 				KVMessage response = new KVMessage(socket.getInputStream());
 				socket.close();
+				
+				System.out.println(op.getTpcOpId() + ":" + this.port + "<= " + response.getMsgType() + ": " + response.getMessage());
 				
 				return response;
 			} catch (SocketTimeoutException e) {
@@ -199,7 +203,7 @@ public class TPCMaster {
 			if (resp.getKey() != key) {
 				throw new KVException(new KVMessage("resp", "Invalid key from slave"));
 			}
-			if (resp.getMsgType() != "resp" || resp.getValue() == null) {
+			if (!resp.getMsgType().equals("resp") || resp.getValue() == null) {
 				throw new KVException(resp);
 			}	
 			return resp.getValue();
@@ -211,9 +215,9 @@ public class TPCMaster {
 			msg.setValue(val);
 			msg.setTpcOpId(tpcOpId);
 			KVMessage resp = doKVOperation(msg);
-			if (resp.getMsgType() == "abort") {
+			if (resp.getMsgType().equals("abort")) {
 				throw new KVException(resp);
-			} else if (resp.getMsgType() != "ready") {
+			} else if (!resp.getMsgType().equals("ready")) {
 				throw new KVException(new KVMessage("resp", "Invalid response from slave"));
 			}
 		}
@@ -225,9 +229,9 @@ public class TPCMaster {
 			msg.setKey(key);
 			msg.setTpcOpId(tpcOpId);
 			KVMessage resp = doKVOperation(msg);
-			if (resp.getMsgType() == "abort") {
+			if (resp.getMsgType().equals("abort")) {
 				throw new KVException(resp);
-			} else if (resp.getMsgType() != "ready") {
+			} else if (!resp.getMsgType().equals("ready")) {
 				throw new KVException(new KVMessage("resp", "Invalid response from slave"));
 			}
 		}
@@ -240,7 +244,7 @@ public class TPCMaster {
 					KVMessage msg = new KVMessage("commit");
 					msg.setTpcOpId(tpcOpId);
 					KVMessage resp = doKVOperation(msg);
-					if (resp.getMsgType() == "ack" && resp.getTpcOpId() == tpcOpId) {
+					if (resp.getMsgType().equals("ack") && resp.getTpcOpId().equals(tpcOpId)) {
 						done = true;
 					} else {
 						System.err.println("TPC Commit Bad Response: " + resp);
@@ -259,7 +263,7 @@ public class TPCMaster {
 					KVMessage msg = new KVMessage("abort");
 					msg.setTpcOpId(tpcOpId);
 					KVMessage resp = doKVOperation(msg);
-					if (resp.getMsgType() == "ack" && resp.getTpcOpId() == tpcOpId) {
+					if (resp.getMsgType().equals("ack") && resp.getTpcOpId().equals(tpcOpId)) {
 						done = true;
 					} else {
 						System.err.println("TPC Abort Bad Response: " + resp);
@@ -433,7 +437,7 @@ public class TPCMaster {
 	 */
 	public void performTPCOperation(KVMessage msg, boolean isPutReq) throws KVException {
 		AutoGrader.agPerformTPCOperationStarted(isPutReq);
-		System.out.println("RT1");
+
 		String key = msg.getKey();
 		
 		WriteLock masterLock = masterCache.getWriteLock(key);
@@ -449,7 +453,7 @@ public class TPCMaster {
 		Thread slaveThread2 = new Thread(slaveVote2);
 		slaveThread1.start();
 		slaveThread2.start();
-		System.out.println("RT2");
+
 		try {
 			slaveThread1.join();
 			slaveThread2.join();
@@ -458,7 +462,7 @@ public class TPCMaster {
 			AutoGrader.agPerformTPCOperationFinished(isPutReq);
 			throw new KVException(new KVMessage("Internal: performTPCOperation failed: InterruptedException"));
 		}
-		System.out.println("RT3");
+
 		KVMessage slave1Err = slaveVote1.error, slave2Err = slaveVote2.error;
 		KVMessage finalErr = null;
 		boolean doCommit;
@@ -475,14 +479,14 @@ public class TPCMaster {
 			}
 			doCommit = false;
 		}
-		System.out.println("RT4");
+
 		SlaveDecisionRunnable slaveDecision1 = new SlaveDecisionRunnable(slave1, tpcOpId, doCommit);
 		SlaveDecisionRunnable slaveDecision2 = new SlaveDecisionRunnable(slave2, tpcOpId, doCommit);
 		slaveThread1 = new Thread(slaveDecision1);
 		slaveThread2 = new Thread(slaveDecision2);
 		slaveThread1.start();
 		slaveThread2.start();
-		System.out.println("RT5");
+
 		if (doCommit) {
 			// do cache commit in main thread
 			if (isPutReq) {
@@ -491,7 +495,7 @@ public class TPCMaster {
 				masterCache.del(key);
 			}
 		}
-		System.out.println("RT6");
+
 		try{
 			slaveThread1.join();
 			slaveThread2.join();
@@ -500,13 +504,13 @@ public class TPCMaster {
 			AutoGrader.agPerformTPCOperationFinished(isPutReq);
 			throw new KVException(new KVMessage("Internal: performTPCOperation failed: InterruptedException"));
 		}
-		System.out.println("RT7");
+
 		if (!doCommit) {
 			masterLock.unlock();
 			AutoGrader.agPerformTPCOperationFinished(isPutReq);
 			throw new KVException(finalErr);
 		}
-		System.out.println("RT8");
+
 		masterLock.unlock();
 		AutoGrader.agPerformTPCOperationFinished(isPutReq);
 		return;

@@ -70,6 +70,12 @@ public class TPCMasterTest {
 			keyServerSocket.addHandler(keyServerHandler);
 			keyServerSocket.connect();
 
+			// Create TPCLog
+			String logPath = slaveId + "@" + keyServerSocket.getHostname();
+			TPCLog tpcLog = new TPCLog(logPath, keyServer);
+			// Set log for TPCMasterHandler
+			keyServerHandler.setTPCLog(tpcLog);
+			
 			System.out.println(" * Register with master");
 			// Register with the Master. Assuming it always succeeds (not catching).
 			keyServerHandler.registerWithMaster(masterHostName, keyServerSocket);
@@ -95,17 +101,14 @@ public class TPCMasterTest {
 	@After
 	public void tearDown() {
 		for (Thread t:threads) {
-			System.out.println("TearDown: kill " + t);
 			t.stop();
 		}
 	}
 
 	@Test
 	public void testHandleGet() throws KVException {
-		System.out.println("Start test");
 		tpcMaster.performTPCOperation(
 				new KVMessage("putreq", "key1", "val1"), true);
-		System.out.println("Finish test");
 	}
 
 }
