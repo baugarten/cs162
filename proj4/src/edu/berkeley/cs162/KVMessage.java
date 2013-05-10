@@ -577,4 +577,17 @@ public class KVMessage implements Serializable {
 		 */
 		// TODO: optional implement me
 	}
+	
+	@Override
+	public boolean equals(Object other) {
+		if (!(other instanceof KVMessage)) {
+			return false;
+		}
+		KVMessage oth = (KVMessage) other;
+		return this.key.equals(oth.key) &&
+				this.message.equals(oth.message) &&
+				this.msgType.equals(oth.msgType) &&
+				this.tpcOpId.equals(oth.tpcOpId) &&
+				this.value.equals(oth.value);
+	}
 }
