@@ -30,12 +30,16 @@
  */
 package edu.berkeley.cs162;
 
+import java.io.BufferedReader;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Reader;
 import java.io.Serializable;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -196,12 +200,16 @@ public class KVMessage implements Serializable {
    		try{
    			//create a DOM from the InputStream input
    			noCloseStream = new NoCloseInputStream(input);
-   			Scanner s = new Scanner(noCloseStream, "UTF-8").useDelimiter("\\A");
-   			temp = s.hasNext() ? s.next() : "";
+   			StringBuffer tmp = new StringBuffer();
+   			int t;
+   			while (!tmp.toString().endsWith("</KVMessage>") && (t = noCloseStream.read()) > 0) { 
+   				tmp.append((char) t);
+   			}
+   			temp = tmp.toString();
    			
    			DocumentBuilderFactory factory = DocumentBuilderFactory
    					.newInstance();
-   			InputSource source = new InputSource(new StringReader(temp));
+   			InputSource source = new InputSource(new StringReader(temp.toString()));
    			Document document = factory.newDocumentBuilder().parse(source);
    			document.getDocumentElement().normalize();
    			
@@ -359,7 +367,7 @@ public class KVMessage implements Serializable {
    			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data" + e.getMessage()));
    		} catch (ParserConfigurationException e) {
    			throw new KVException(new KVMessage("resp", "Unknown Error: Something is wrong"));
-   		} finally {
+		} finally {
    			if(in != null){
    				try {
    					in.close();

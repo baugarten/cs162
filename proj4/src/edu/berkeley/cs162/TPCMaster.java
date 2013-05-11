@@ -86,6 +86,8 @@ public class TPCMaster {
 				try {
 					KVMessage ack;
 					String response = "";
+					System.out.println("isshutdown: " + client.isInputShutdown());
+					System.out.println("connected: " + client.isConnected());
 					InputStream input = client.getInputStream();
 					KVMessage registerMsg = new KVMessage(input);
 					if (!registerMsg.getMsgType().equals("register")){

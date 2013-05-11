@@ -403,9 +403,11 @@ public class TPCMasterHandler implements NetworkHandler {
 		KVMessage regMessage = new KVMessage("register", slaveID + "@" + server.getHostname() + ":" + server.getPort());
 		regMessage.sendMessage(master);
 		
+		System.out.println("Sent message to master");
 		// Receive master response. 
 		// Response should always be success, except for Exceptions. Throw away.
 		new KVMessage(master.getInputStream());
+		System.out.println("Received message");
 		
 		master.close();
 		AutoGrader.agRegistrationFinished(slaveID);
