@@ -16,7 +16,7 @@ import edu.berkeley.cs162.*;
 public class KVMessageInputStreamProj4Test {
 	
 	private KVMessage kvMessage;
-	private ObjectOutputStream out;
+	private PipedOutputStream out;
 	private PipedInputStream pipedIn;
 	private PipedOutputStream pipedOut;
 
@@ -24,7 +24,7 @@ public class KVMessageInputStreamProj4Test {
 	public void setUp() throws Exception {
 		pipedOut = new PipedOutputStream();
 		pipedIn = new PipedInputStream(pipedOut); 
-		out = new ObjectOutputStream(pipedOut);
+		out = pipedOut;
 	}
 
 	@After
@@ -37,7 +37,7 @@ public class KVMessageInputStreamProj4Test {
 	public void testKVMessageInputStreamValidTPCPut() throws KVException,IOException {
 		String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 		request += "<KVMessage type=\"putreq\"><Key>Cal</Key><Value>Bear</Value><TPCOpId>9</TPCOpId></KVMessage>";
-		out.writeObject(request);
+		out.write(request.getBytes("UTF-8"));
 		kvMessage = new KVMessage(pipedIn);
 		assertEquals("putreq", kvMessage.getMsgType());
 		assertEquals("Cal", kvMessage.getKey());
@@ -49,7 +49,7 @@ public class KVMessageInputStreamProj4Test {
 	public void testKVMessageInputStreamValidTPCDel() throws KVException,IOException {
 		String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 		request += "<KVMessage type=\"delreq\"><Key>Cal</Key><TPCOpId>9</TPCOpId></KVMessage>";
-		out.writeObject(request);
+		out.write(request.getBytes("UTF-8"));
 		kvMessage = new KVMessage(pipedIn);
 		assertEquals("delreq", kvMessage.getMsgType());
 		assertEquals("Cal", kvMessage.getKey());
@@ -60,7 +60,7 @@ public class KVMessageInputStreamProj4Test {
 	public void testKVMessageInputStreamValidReady() throws KVException,IOException {
 		String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 		request += "<KVMessage type=\"ready\"><TPCOpId>9</TPCOpId></KVMessage>";
-		out.writeObject(request);
+		out.write(request.getBytes("UTF-8"));
 		kvMessage = new KVMessage(pipedIn);
 		assertEquals("ready", kvMessage.getMsgType());
 		assertEquals("9", kvMessage.getTpcOpId());
@@ -70,7 +70,7 @@ public class KVMessageInputStreamProj4Test {
 	public void testKVMessageInputStreamValidSlaveAbort() throws KVException,IOException {
 		String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 		request += "<KVMessage type=\"abort\"><Message>I'm sleeping</Message><TPCOpId>9</TPCOpId></KVMessage>";
-		out.writeObject(request);
+		out.write(request.getBytes("UTF-8"));
 		kvMessage = new KVMessage(pipedIn);
 		assertEquals("abort", kvMessage.getMsgType());
 		assertEquals("I'm sleeping", kvMessage.getMessage());
@@ -81,7 +81,7 @@ public class KVMessageInputStreamProj4Test {
 	public void testKVMessageInputStreamValidCommit() throws KVException,IOException {
 		String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 		request += "<KVMessage type=\"commit\"><TPCOpId>9</TPCOpId></KVMessage>";
-		out.writeObject(request);
+		out.write(request.getBytes("UTF-8"));
 		kvMessage = new KVMessage(pipedIn);
 		assertEquals("commit", kvMessage.getMsgType());
 		assertEquals("9", kvMessage.getTpcOpId());
@@ -91,7 +91,7 @@ public class KVMessageInputStreamProj4Test {
 	public void testKVMessageInputStreamValidGlobalAbort() throws KVException,IOException {
 		String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 		request += "<KVMessage type=\"abort\"><TPCOpId>9</TPCOpId></KVMessage>";
-		out.writeObject(request);
+		out.write(request.getBytes("UTF-8"));
 		kvMessage = new KVMessage(pipedIn);
 		assertEquals("abort", kvMessage.getMsgType());
 		assertEquals("9", kvMessage.getTpcOpId());
@@ -101,7 +101,7 @@ public class KVMessageInputStreamProj4Test {
 	public void testKVMessageInputStreamValidTPCAck() throws KVException,IOException {
 		String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 		request += "<KVMessage type=\"ack\"><TPCOpId>9</TPCOpId></KVMessage>";
-		out.writeObject(request);
+		out.write(request.getBytes("UTF-8"));
 		kvMessage = new KVMessage(pipedIn);
 		assertEquals("ack", kvMessage.getMsgType());
 		assertEquals("9", kvMessage.getTpcOpId());
@@ -113,7 +113,7 @@ public class KVMessageInputStreamProj4Test {
 		try {
 			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 			request += "<KVMessage type=\"ready\"><Key>Cal</Key></KVMessage>";
-			out.writeObject(request);
+			out.write(request.getBytes("UTF-8"));
 			kvMessage = new KVMessage(pipedIn);
 			fail();
 		} catch (KVException e){
@@ -128,7 +128,7 @@ public class KVMessageInputStreamProj4Test {
 		try {
 			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 			request += "<KVMessage type=\"commit\"><Key>Cal</Key></KVMessage>";
-			out.writeObject(request);
+			out.write(request.getBytes("UTF-8"));
 			kvMessage = new KVMessage(pipedIn);
 			fail();
 		} catch (KVException e){
@@ -143,7 +143,7 @@ public class KVMessageInputStreamProj4Test {
 		try {
 			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 			request += "<KVMessage type=\"abort\"><Key>Cal</Key></KVMessage>";
-			out.writeObject(request);
+			out.write(request.getBytes("UTF-8"));
 			kvMessage = new KVMessage(pipedIn);
 			fail();
 		} catch (KVException e){
@@ -158,7 +158,7 @@ public class KVMessageInputStreamProj4Test {
 		try {
 			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 			request += "<KVMessage type=\"ack\"><Key>Cal</Key></KVMessage>";
-			out.writeObject(request);
+			out.write(request.getBytes("UTF-8"));
 			kvMessage = new KVMessage(pipedIn);
 			fail();
 		} catch (KVException e){
@@ -173,7 +173,7 @@ public class KVMessageInputStreamProj4Test {
 		try {
 			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 			request += "<KVMessage type=\"register\"><Key>Cal</Key></KVMessage>";
-			out.writeObject(request);
+			out.write(request.getBytes("UTF-8"));
 			kvMessage = new KVMessage(pipedIn);
 			fail();
 		} catch (KVException e){
@@ -188,7 +188,7 @@ public class KVMessageInputStreamProj4Test {
 		try {
 			String request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 			request += "<KVMessage type=\"resp\"><Key>Cal</Key></KVMessage>";
-			out.writeObject(request);
+			out.write(request.getBytes("UTF-8"));
 			kvMessage = new KVMessage(pipedIn);
 			fail();
 		} catch (KVException e){
