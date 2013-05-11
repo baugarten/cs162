@@ -468,7 +468,7 @@ public class TPCMaster {
 	 */
 	public void performTPCOperation(KVMessage msg, boolean isPutReq) throws KVException {
 		AutoGrader.agPerformTPCOperationStarted(isPutReq);
-
+		SlaveInfo temp;
 		String key = msg.getKey();
 		
 		WriteLock masterLock = masterCache.getWriteLock(key);
@@ -476,6 +476,12 @@ public class TPCMaster {
 		
 		SlaveInfo slave1 = findFirstReplica(key);
 		SlaveInfo slave2 = findSuccessor(slave1);
+		
+		if(isLessThanUnsigned(slave2.getSlaveID(),slave1.getSlaveID())){
+			temp = slave1;
+			slave1 = slave2;
+			slave2 = temp;
+		}
 		
 		WriteLock slave1_lock = slave1.getWriteLock();
 		WriteLock slave2_lock = slave2.getWriteLock();
@@ -633,7 +639,7 @@ public class TPCMaster {
 	 */
 	public String handleGet(KVMessage msg) throws KVException {
 		AutoGrader.aghandleGetStarted();
-
+		SlaveInfo temp;
 		String key = msg.getKey();
 		
 		WriteLock masterLock = masterCache.getWriteLock(key);
@@ -651,6 +657,12 @@ public class TPCMaster {
 		Semaphore masterWake = new Semaphore(0);
 		SlaveInfo slave1 = findFirstReplica(key);
 		SlaveInfo slave2 = findSuccessor(slave1);
+		
+		if(isLessThanUnsigned(slave2.getSlaveID(),slave1.getSlaveID())){
+			temp = slave1;
+			slave1 = slave2;
+			slave2 = temp;
+		}
 		
 		WriteLock slave1_lock = slave1.getWriteLock();
 		WriteLock slave2_lock = slave2.getWriteLock();
