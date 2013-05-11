@@ -49,6 +49,7 @@ public class TPCMasterHandler implements NetworkHandler {
 	
 	// Used to handle the "ignoreNext" message
 	private boolean ignoreNext = false;
+	public boolean ignoreNextCommit = false;
 	
 	// States carried from the first to the second phase of a 2PC operation
 	private KVMessage originalMessage = null;
@@ -88,8 +89,16 @@ public class TPCMasterHandler implements NetworkHandler {
 			KVMessage msg = null;
 			try {
 				msg = new KVMessage(client.getInputStream());
+			} catch (KVException e) {
+				KVMessage m = e.getMsg();
+				System.err.println(m.getMsgType());
+				System.err.println(m.getMessage());
+				e.printStackTrace();
+				return;
 			} catch (Exception e1) {
 				// burn in hell
+				e1.printStackTrace();
+				System.err.println("burnt in hell");
 				return;
 			} 
 
@@ -106,8 +115,9 @@ public class TPCMasterHandler implements NetworkHandler {
 			} 
 			else if (msg.getMsgType().equals("ignoreNext")) {
 				ignoreNext = true;
+
 				try {
-					msg = new KVMessage("resp", "success");
+					msg = new KVMessage("resp", "Success");
 					msg.sendMessage(client);
 				} catch (KVException e) {
 					// ignore
@@ -121,6 +131,11 @@ public class TPCMasterHandler implements NetworkHandler {
 					ignoreNext = false;
 					return;
 				}
+				if (ignoreNextCommit) {
+					ignoreNextCommit = false;
+					return;
+				}
+				
 				if (tpcLog.hasInterruptedTpcOperation()) {
 					originalMessage = tpcLog.getInterruptedTpcOperation();
 				}

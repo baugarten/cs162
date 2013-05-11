@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.OutputStream;
 import java.io.Serializable;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -43,7 +42,6 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Scanner;
 import java.util.Set;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -196,9 +194,8 @@ public class KVMessage implements Serializable {
    		try{
    			//create a DOM from the InputStream input
    			noCloseStream = new NoCloseInputStream(input);
-   			Scanner s = new Scanner(noCloseStream, "UTF-8").useDelimiter("\\A");
-   			temp = s.hasNext() ? s.next() : "";
-   			
+   			in = new ObjectInputStream(noCloseStream);
+   			temp = (String) in.readObject();
    			DocumentBuilderFactory factory = DocumentBuilderFactory
    					.newInstance();
    			InputSource source = new InputSource(new StringReader(temp));
@@ -321,7 +318,14 @@ public class KVMessage implements Serializable {
 				}
 				
 				msgNode = children.item(0);
-				this.message = msgNode.getTextContent();		
+				this.message = msgNode.getTextContent();
+   			}
+   			else if (attr.equals("ignoreNext")){
+	   				children = document.getElementsByTagName("Message");
+					if (children.getLength() != 0) {
+						throw new KVException(new KVMessage("resp",
+								"Message format incorrect"));
+					}	
    			}
    			else {
    				keyEle = document.getElementsByTagName("Key");
@@ -355,11 +359,13 @@ public class KVMessage implements Serializable {
    		} catch (SAXException e){
    			throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
    		} catch (IOException e){
-   			e.printStackTrace();
    			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data" + e.getMessage()));
    		} catch (ParserConfigurationException e) {
    			throw new KVException(new KVMessage("resp", "Unknown Error: Something is wrong"));
-   		} finally {
+   		} catch (ClassNotFoundException e){
+   			throw new KVException(new KVMessage("resp","Unknown Error: Something is wrong"));
+   		}
+   		finally {
    			if(in != null){
    				try {
    					in.close();
@@ -569,11 +575,11 @@ public class KVMessage implements Serializable {
 	}
 	
 	public void sendMessage(Socket sock) throws KVException {
-		OutputStream out = null;
+		ObjectOutputStream out = null;
 		try {
-			out = sock.getOutputStream();
+			out = new ObjectOutputStream(sock.getOutputStream());
 			String temp = toXML();
-			out.write(temp.getBytes("UTF-8"));
+			out.writeObject(temp);
 			out.flush();
 		} 
 		catch (IOException e){
@@ -595,20 +601,10 @@ public class KVMessage implements Serializable {
 			return false;
 		}
 		KVMessage oth = (KVMessage) other;
-		return (key == oth.key || key != null && key.equals(oth.key)) &&
-				(message == oth.message || message != null && message.equals(oth.message)) &&
-				(msgType == oth.msgType || msgType != null && msgType.equals(oth.msgType)) &&
-				(tpcOpId == oth.tpcOpId || tpcOpId != null && tpcOpId.equals(oth.tpcOpId)) &&
-				(value == oth.value || value != null && value.equals(oth.value)); 
-	}
-	
-	@Override
-	public String toString() {
-		try {
-			return toXML();
-		} catch (KVException e) {
-			e.printStackTrace();
-			return super.toString();
-		}
+		return this.key.equals(oth.key) &&
+				this.message.equals(oth.message) &&
+				this.msgType.equals(oth.msgType) &&
+				this.tpcOpId.equals(oth.tpcOpId) &&
+				this.value.equals(oth.value);
 	}
 }

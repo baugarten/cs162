@@ -2,7 +2,10 @@ package test.edu.berkeley.cs162;
 
 import static org.junit.Assert.*;
 
+import java.net.BindException;
 import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 
 import org.junit.After;
 import org.junit.Before;
@@ -12,19 +15,18 @@ import edu.berkeley.cs162.*;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.locks.*;
 
 public class TPCMasterTest {
 	static TPCMaster tpcMaster;
+	static ArrayList<KVServer> slaveServers = new ArrayList<KVServer>();
+	static ArrayList<SocketServer> slaveSockets = new ArrayList<SocketServer>();
+	static ArrayList<TPCMasterHandler> slaveHandlers = new ArrayList<TPCMasterHandler>();
 	
-	static ArrayList<KVServer> slaveServers;
-	
-	static ArrayList<Thread> threads;
+	static ArrayList<Thread> threads = new ArrayList<Thread>();
 	
 	@Before
 	public void setUp() throws Exception {
-		slaveServers = new ArrayList<KVServer>();
-		threads = new ArrayList<Thread>();
-		
 		String masterHostName = InetAddress.getLocalHost().getHostAddress();
 		int masterPort = 8080;
 		
@@ -34,6 +36,7 @@ public class TPCMasterTest {
 		
 		// Create KVClientHandler
 		System.out.println("Binding Master:");
+		
 		final SocketServer tpcMasterServer = new SocketServer(InetAddress.getLocalHost().getHostAddress(), 8080);
 		NetworkHandler tpcMasterHandler = new KVClientHandler(tpcMaster);
 		tpcMasterServer.addHandler(tpcMasterHandler);
@@ -57,7 +60,7 @@ public class TPCMasterTest {
 		
 		slaveServers.clear();
 		for (int i=0; i<3; i++) {
-			long slaveId = slaveServers.size() * 100;
+			long slaveId = slaveServers.size() * 20000000000000000l;
 			
 			// Create TPCMasterHandler
 			System.out.println("Binding SlaveServer:");
@@ -65,8 +68,9 @@ public class TPCMasterTest {
 			slaveServers.add(keyServer);
 			
 			final SocketServer keyServerSocket = new SocketServer(InetAddress.getLocalHost().getHostAddress());
-			slaveServers.add(keyServer);
+			slaveSockets.add(keyServerSocket);
 			TPCMasterHandler keyServerHandler = new TPCMasterHandler(keyServer, slaveId);
+			slaveHandlers.add(keyServerHandler);
 			keyServerSocket.addHandler(keyServerHandler);
 			keyServerSocket.connect();
 
@@ -109,6 +113,78 @@ public class TPCMasterTest {
 	@Test
 	public void testHandleGet() throws KVException {
 		String resp;
+		// try failures
+		// put vote failure
+		System.out.println("check put vote failure");
+		slaveIgnore(0);
+		try{
+			tpcMaster.performTPCOperation(new KVMessage("putreq", "keyz", "valz"), true);
+			fail("put should throw exception");
+		} catch (KVException e) {
+			KVMessage m = e.getMsg();
+			assertEquals("resp", m.getMsgType());
+			assertEquals("@0:=IgnoreNext Error: SlaveServer 0 has ignored this 2PC request during the first phase",
+					m.getMessage());
+		}
+		slaveIgnore(1);
+		try{
+			tpcMaster.performTPCOperation(new KVMessage("putreq", "keyz", "valz"), true);
+			fail("put should throw exception");
+		} catch (KVException e) {
+			KVMessage m = e.getMsg();
+			assertEquals("resp", m.getMsgType());
+			assertEquals("@20000000000000000:=IgnoreNext Error: SlaveServer 20000000000000000 has ignored this 2PC request during the first phase",
+					m.getMessage());
+		}
+		slaveIgnore(0);
+		slaveIgnore(1);
+		try{
+			tpcMaster.performTPCOperation(new KVMessage("putreq", "keyz", "valz"), true);
+			fail("put should throw exception");
+		} catch (KVException e) {
+			KVMessage m = e.getMsg();
+			assertEquals("resp", m.getMsgType());
+			assertEquals("@0:=IgnoreNext Error: SlaveServer 0 has ignored this 2PC request during the first phase\n"
+					+ "@20000000000000000:=IgnoreNext Error: SlaveServer 20000000000000000 has ignored this 2PC request during the first phase",
+					m.getMessage());
+		}
+		assertEquals(null, slaveServers.get(0).get("keyz"));
+		assertEquals(null, slaveServers.get(1).get("keyz"));
+		
+		System.out.println("check put commit failure");
+		slaveIgnoreCommit(0);
+		tpcMaster.performTPCOperation(new KVMessage("putreq", "keyz", "valz"), true);
+		assertEquals("valz", slaveServers.get(0).get("keyz"));
+		assertEquals("valz", slaveServers.get(1).get("keyz"));
+		
+		System.out.println("check del abort failure");
+		slaveIgnore(0);
+		slaveIgnoreCommit(0);
+		try{
+			tpcMaster.performTPCOperation(new KVMessage("delreq", "keyz", null), false);
+			fail("put should throw exception");
+		} catch (KVException e) {
+			KVMessage m = e.getMsg();
+			assertEquals("resp", m.getMsgType());
+			assertEquals("@0:=IgnoreNext Error: SlaveServer 0 has ignored this 2PC request during the first phase",
+					m.getMessage());
+		}
+		assertEquals("valz", slaveServers.get(0).get("keyz"));
+		assertEquals("valz", slaveServers.get(1).get("keyz"));
+
+		System.out.println("check put commit failure");
+		slaveIgnoreCommit(0);
+		tpcMaster.performTPCOperation(new KVMessage("delreq", "keyz", null), false);
+		assertEquals(null, slaveServers.get(0).get("keyz"));
+		assertEquals(null, slaveServers.get(1).get("keyz"));
+		
+		// check backing store
+		System.out.println("check initial backing store");
+		assertEquals(null, slaveServers.get(0).get("key1"));
+		assertEquals(null, slaveServers.get(1).get("key1"));
+		assertEquals(null, slaveServers.get(2).get("a"));
+		assertEquals(null, slaveServers.get(0).get("a"));
+		
 		// try invalid get
 		System.out.println("try invalid get");
 		try {
@@ -120,7 +196,7 @@ public class TPCMasterTest {
 			assertEquals("resp", err.getMsgType());
 			assertEquals("Does not exist", err.getMessage());
 		}
-		
+
 		// try invalid del
 		System.out.println("try invalid del");
 		try {
@@ -130,15 +206,15 @@ public class TPCMasterTest {
 		} catch (KVException e) {
 			KVMessage err = e.getMsg();
 			assertEquals("resp", err.getMsgType());
-			assertEquals("@0:=Does not exist\n@200:=Does not exist", err.getMessage());
+			assertEquals("@0:=Does not exist\n@20000000000000000:=Does not exist", err.getMessage());
 		}
 
 		// put key into store and verify backing store
 		System.out.println("try put");
 		tpcMaster.performTPCOperation(
 				new KVMessage("putreq", "key1", "val1"), true);
-		assertEquals("val1", slaveServers.get(2).get("key1"));
 		assertEquals("val1", slaveServers.get(0).get("key1"));
+		assertEquals("val1", slaveServers.get(1).get("key1"));
 		
 		// try cached get
 		System.out.println("try put: cached get");
@@ -153,94 +229,88 @@ public class TPCMasterTest {
 		// test with two keys
 		System.out.println("try put second key");
 		tpcMaster.performTPCOperation(
-				new KVMessage("putreq", "key2", "val2"), true);
-		assertEquals("val1", slaveServers.get(2).get("key1"));
+				new KVMessage("putreq", "a", "val2"), true);
 		assertEquals("val1", slaveServers.get(0).get("key1"));
-		assertEquals("val2", slaveServers.get(0).get("key2"));
-		assertEquals("val2", slaveServers.get(1).get("key2"));
+		assertEquals("val1", slaveServers.get(1).get("key1"));
+		assertEquals("val2", slaveServers.get(2).get("a"));
+		assertEquals("val2", slaveServers.get(0).get("a"));
 		
 		// try cached gets
 		System.out.println("try put second key: cached get");
 		assertEquals("val1",
 				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
 		assertEquals("val2",
-				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));
+				tpcMaster.handleGet(new KVMessage("getreq", "a", null)));
 		// and networked gets
 		System.out.println("try put second key: networked get");
 		tpcMaster.flushCache();
 		assertEquals("val1",
 				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
 		assertEquals("val2",
-				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));		
+				tpcMaster.handleGet(new KVMessage("getreq", "a", null)));		
 		
 		// try cached overwrite
 		System.out.println("try cached overwrite");
 		tpcMaster.performTPCOperation(
 				new KVMessage("putreq", "key1", "overwrite"), true);
-		assertEquals("overwrite", slaveServers.get(2).get("key1"));
 		assertEquals("overwrite", slaveServers.get(0).get("key1"));
-		assertEquals("val2", slaveServers.get(0).get("key2"));
-		assertEquals("val2", slaveServers.get(1).get("key2"));
+		assertEquals("overwrite", slaveServers.get(1).get("key1"));
+		assertEquals("val2", slaveServers.get(2).get("a"));
+		assertEquals("val2", slaveServers.get(0).get("a"));
 		
 		// ensure cache consistent
 		System.out.println("try cached overwrite: cached get");
 		assertEquals("overwrite",
 				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
 		assertEquals("val2",
-				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));
+				tpcMaster.handleGet(new KVMessage("getreq", "a", null)));
 		// and try networked operations
 		System.out.println("try cached overwrite: networked get");
 		tpcMaster.flushCache();
 		assertEquals("overwrite",
 				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
 		assertEquals("val2",
-				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));
+				tpcMaster.handleGet(new KVMessage("getreq", "a", null)));
 		
 		// try non-cached overwrite
 		System.out.println("try non-cached overwrite");
 		tpcMaster.flushCache();
 		tpcMaster.performTPCOperation(
 				new KVMessage("putreq", "key1", "over2"), true);
-		assertEquals("over2", slaveServers.get(2).get("key1"));
 		assertEquals("over2", slaveServers.get(0).get("key1"));
-		assertEquals("val2", slaveServers.get(0).get("key2"));
-		assertEquals("val2", slaveServers.get(1).get("key2"));
+		assertEquals("over2", slaveServers.get(1).get("key1"));
+		assertEquals("val2", slaveServers.get(2).get("a"));
+		assertEquals("val2", slaveServers.get(0).get("a"));
 		
 		// ensure cache consistent
 		System.out.println("try non-cached overwrite: cached get");
 		assertEquals("over2",
 				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
 		assertEquals("val2",
-				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));
+				tpcMaster.handleGet(new KVMessage("getreq", "a", null)));
 		// and try networked operations
 		System.out.println("try non-cached overwrite: networked get");
 		tpcMaster.flushCache();
 		assertEquals("over2",
 				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
 		assertEquals("val2",
-				tpcMaster.handleGet(new KVMessage("getreq", "key2", null)));
+				tpcMaster.handleGet(new KVMessage("getreq", "a", null)));
 		
 		// try cached delete
 		System.out.println("try cached delete");
 		tpcMaster.performTPCOperation(
-				new KVMessage("delreq", "key2", null), false);
-		try{
-			slaveServers.get(0).get("key2");
-			fail("get should throw exception");
-		} catch (KVException e) {}
-		try{
-			slaveServers.get(1).get("key2");
-			fail("get should throw exception");
-		} catch (KVException e) {}
-		assertEquals("over2", slaveServers.get(2).get("key1"));
+				new KVMessage("delreq", "a", null), false);
+		assertEquals(null, slaveServers.get(2).get("a"));
+		assertEquals(null, slaveServers.get(0).get("a"));
 		assertEquals("over2", slaveServers.get(0).get("key1"));
+		assertEquals("over2", slaveServers.get(1).get("key1"));
 		
 		// and try doing get
 		System.out.println("try cached delete: cached get");
 		assertEquals("over2",
 				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
 		try{
-			tpcMaster.handleGet(new KVMessage("getreq", "key2", null));
+			tpcMaster.handleGet(new KVMessage("getreq", "a", null));
 			fail("get should throw exception");
 		} catch (KVException e) {}
 		// and with flushed cache
@@ -249,7 +319,7 @@ public class TPCMasterTest {
 		assertEquals("over2",
 				tpcMaster.handleGet(new KVMessage("getreq", "key1", null)));
 		try{
-			tpcMaster.handleGet(new KVMessage("getreq", "key2", null));
+			tpcMaster.handleGet(new KVMessage("getreq", "a", null));
 			fail("get should throw exception");
 		} catch (KVException e) {}
 		
@@ -258,14 +328,9 @@ public class TPCMasterTest {
 		tpcMaster.flushCache();
 		tpcMaster.performTPCOperation(
 				new KVMessage("delreq", "key1", null), false);
-		try{
-			slaveServers.get(2).get("key1");
-			fail("get should throw exception");
-		} catch (KVException e) {}
-		try{
-			slaveServers.get(0).get("key1");
-			fail("get should throw exception");
-		} catch (KVException e) {}
+		
+		assertEquals(null, slaveServers.get(0).get("key1"));
+		assertEquals(null, slaveServers.get(1).get("key1"));
 		
 		// and try doing get
 		System.out.println("try non-cached delete: cached get");
@@ -280,7 +345,32 @@ public class TPCMasterTest {
 			tpcMaster.handleGet(new KVMessage("getreq", "key1", null));
 			fail("get should throw exception");
 		} catch (KVException e) {}
-		
+	}
+	
+	void slaveIgnoreCommit(int slave) {
+		slaveHandlers.get(slave).ignoreNextCommit = true;
+	}
+	void slaveIgnore(int slave) {
+		try {
+			SocketServer serv = slaveSockets.get(slave);
+			Socket sock = new Socket(serv.getHostname(), serv.getPort());
+			sock.setSoTimeout(2500);
+			System.out.println("ignoreNext => " + sock.toString());
+			
+			KVMessage msg = new KVMessage("ignoreNext"); 
+			msg.sendMessage(sock);
+			
+			KVMessage response = new KVMessage(sock.getInputStream());
+			sock.close();
+			assertEquals("resp", response.getMsgType());
+			assertEquals("Success", response.getMessage());
+		} catch (KVException e) {
+			KVMessage m = e.getMsg();
+			fail("slaveIgnore KVException: " + m.getMsgType() + " " + m.getMessage());
+		} catch (Exception e) {
+			e.printStackTrace();
+			fail("slaveIgnore exception: " + e);
+		}
 	}
 
 }

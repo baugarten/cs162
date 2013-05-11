@@ -366,6 +366,11 @@ public class TPCMaster {
 		AutoGrader.agTPCMasterFinished();
 	}
 	
+	// for testing only
+	public void stop() {
+		regServer.stop();
+	}
+	
 	/**
 	 * Converts Strings to 64-bit longs
 	 * Borrowed from http://stackoverflow.com/questions/1660501/what-is-a-good-64bit-hash-function-in-java-for-textual-strings
