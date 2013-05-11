@@ -202,7 +202,7 @@ public class KVMessage implements Serializable {
    			noCloseStream = new NoCloseInputStream(input);
    			StringBuffer tmp = new StringBuffer();
    			int t;
-   			while (!tmp.toString().endsWith("</KVMessage>") && (t = noCloseStream.read()) > 0) { 
+   			while (!(tmp.toString().endsWith("</KVMessage>") || tmp.toString().matches(".*<KVMessage[^<>]+/>$")) && (t = noCloseStream.read()) > 0) { 
    				tmp.append((char) t);
    			}
    			temp = tmp.toString();
@@ -588,6 +588,7 @@ public class KVMessage implements Serializable {
 		try {
 			out = sock.getOutputStream();
 			String temp = toXML();
+			System.out.println(temp);
 			out.write(temp.getBytes("UTF-8"));
 			out.flush();
 		} 
