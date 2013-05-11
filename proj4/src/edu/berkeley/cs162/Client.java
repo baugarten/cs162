@@ -30,10 +30,11 @@
 package edu.berkeley.cs162;
 
 import java.io.IOException;
+import java.net.InetAddress;
 
 public class Client {
 	public static void main(String[] args) throws IOException {
-		KVClient kc = new KVClient("localhost",8080);
+		KVClient kc = new KVClient(InetAddress.getLocalHost().getHostAddress(),8080);
 		System.out.println("Start");
 		try{			
 			String three = "three";
@@ -41,7 +42,7 @@ public class Client {
 			System.out.println("putting (3, 7)");
 			kc.put(three, seven);
 			
-
+			
 			System.out.println("putting (3, 7) (again)");
 			kc.put(three, seven);
 			
@@ -49,6 +50,10 @@ public class Client {
 			String value = kc.get(three);					
 			System.out.println("returned: " + value);
 			kc.del(three);
+			
+			// suppose to throw exception because deletet non-existent key
+			kc.get(three);
+			
 		}catch(Exception e){
 			e.printStackTrace();
 		}

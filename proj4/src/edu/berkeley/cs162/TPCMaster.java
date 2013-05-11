@@ -38,6 +38,7 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 public class TPCMaster {
@@ -106,6 +107,7 @@ public class TPCMaster {
 					response += "Successfully registered " + msg;
 					ack = new KVMessage("resp", response);
 					ack.sendMessage(client);
+					//System.out.println(response);
 				}
 				catch (KVException e) {
 					e.printStackTrace();
@@ -128,6 +130,8 @@ public class TPCMaster {
 		private String hostName = null;
 		// Port which SlaveServer is listening to
 		private int port = -1;
+		// Lock
+		private WriteLock writeLock;
 
 		/**
 		 * 
@@ -155,6 +159,8 @@ public class TPCMaster {
 				System.err.println("Registration error, received bad port: " + port);
 				throw new KVException(new KVMessage("resp", "Registration Error: Received bad port: " + port));
 			}
+			final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+			writeLock = lock.writeLock();
 		}
 		
 		public long getSlaveID() {
@@ -169,6 +175,10 @@ public class TPCMaster {
 			return port;
 		}
 		
+		public WriteLock getWriteLock() {
+			return writeLock;
+		}
+		
 		// IS THIS THREAD-SAFE WHEN USED CONCURRENTLY WITH DOKVOPERATION?
 		public synchronized void update(String newHostName, int newPort){
 			hostName = newHostName;
@@ -176,18 +186,18 @@ public class TPCMaster {
 		}
 		
 		public synchronized KVMessage doKVOperation(KVMessage op) throws KVException {
-			System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + "KVOperation on " + this.hostName + ":" + this.port);
+			//System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + "KVOperation on " + this.hostName + ":" + this.port);
 			try {
 				Socket socket = new Socket(this.hostName, this.port);
 				socket.setSoTimeout(TIMEOUT_MILLISECONDS);
 				
-				System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + op.getMsgType() + ": " + op.getMessage());
+				//System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + op.getMsgType() + ": " + op.getMessage());
 				
 				op.sendMessage(socket);
 				KVMessage response = new KVMessage(socket.getInputStream());
 				socket.close();
 				
-				System.out.println(op.getTpcOpId() + ":" + this.port + "<= " + response.getMsgType() + ": " + response.getMessage());
+				//System.out.println(op.getTpcOpId() + ":" + this.port + "<= " + response.getMsgType() + ": " + response.getMessage());
 				
 				return response;
 			} catch (SocketTimeoutException e) {
@@ -275,6 +285,12 @@ public class TPCMaster {
 					System.err.println("TPC Abort exception: " + e.getMsg().getMessage());
 				}
 			}
+		}
+		
+		@Override
+		public String toString(){
+			String result = "" +  String.valueOf(slaveID) + "@" + hostName + ":" + String.valueOf(port);
+			return result;
 		}
 	}
 	
@@ -460,7 +476,18 @@ public class TPCMaster {
 		
 		SlaveInfo slave1 = findFirstReplica(key);
 		SlaveInfo slave2 = findSuccessor(slave1);
+		
+		WriteLock slave1_lock = slave1.getWriteLock();
+		WriteLock slave2_lock = slave2.getWriteLock();
+		
+		slave1_lock.lock();
+		slave2_lock.lock();
+		
 		String tpcOpId = getNextTpcOpId();
+		
+		//System.out.println(slave1);
+		//System.out.println(slave2);
+		//System.out.println("Starting phase 1");
 		
 		SlaveVoteRunnable slaveVote1 = new SlaveVoteRunnable(slave1, key, msg.getValue(), tpcOpId, isPutReq);
 		SlaveVoteRunnable slaveVote2 = new SlaveVoteRunnable(slave2, key, msg.getValue(), tpcOpId, isPutReq);
@@ -473,6 +500,8 @@ public class TPCMaster {
 			slaveThread1.join();
 			slaveThread2.join();
 		} catch (InterruptedException e) {
+			slave1_lock.unlock();
+			slave2_lock.unlock();
 			masterLock.unlock();
 			AutoGrader.agPerformTPCOperationFinished(isPutReq);
 			throw new KVException(new KVMessage("Internal: performTPCOperation failed: InterruptedException"));
@@ -495,6 +524,9 @@ public class TPCMaster {
 			doCommit = false;
 		}
 
+		//System.out.println("Vote result = " + doCommit);
+		//System.out.println("Starting phase 2");
+		
 		SlaveDecisionRunnable slaveDecision1 = new SlaveDecisionRunnable(slave1, tpcOpId, doCommit);
 		SlaveDecisionRunnable slaveDecision2 = new SlaveDecisionRunnable(slave2, tpcOpId, doCommit);
 		slaveThread1 = new Thread(slaveDecision1);
@@ -514,18 +546,24 @@ public class TPCMaster {
 		try{
 			slaveThread1.join();
 			slaveThread2.join();
-		} catch (InterruptedException e) {	
+		} catch (InterruptedException e) {
+			slave1_lock.unlock();
+			slave2_lock.unlock();
 			masterLock.unlock();
 			AutoGrader.agPerformTPCOperationFinished(isPutReq);
 			throw new KVException(new KVMessage("Internal: performTPCOperation failed: InterruptedException"));
 		}
 
 		if (!doCommit) {
+			slave1_lock.unlock();
+			slave2_lock.unlock();
 			masterLock.unlock();
 			AutoGrader.agPerformTPCOperationFinished(isPutReq);
 			throw new KVException(finalErr);
 		}
-
+		slave1_lock.unlock();
+		slave2_lock.unlock();
+		
 		masterLock.unlock();
 		AutoGrader.agPerformTPCOperationFinished(isPutReq);
 		return;
@@ -600,6 +638,9 @@ public class TPCMaster {
 		
 		WriteLock masterLock = masterCache.getWriteLock(key);
 		masterLock.lock();
+		
+		
+		
 		String cacheVal = masterCache.get(key);
 		if (cacheVal != null) {
 			masterLock.unlock();
@@ -610,6 +651,13 @@ public class TPCMaster {
 		Semaphore masterWake = new Semaphore(0);
 		SlaveInfo slave1 = findFirstReplica(key);
 		SlaveInfo slave2 = findSuccessor(slave1);
+		
+		WriteLock slave1_lock = slave1.getWriteLock();
+		WriteLock slave2_lock = slave2.getWriteLock();
+		
+		slave1_lock.lock();
+		slave2_lock.lock();
+		
 		SlaveGetRunnable slaveGet1 = new SlaveGetRunnable(slave1, key, masterWake);
 		SlaveGetRunnable slaveGet2 = new SlaveGetRunnable(slave2, key, masterWake);
 		Thread slaveThread1 = new Thread(slaveGet1);
@@ -620,6 +668,8 @@ public class TPCMaster {
 		try {
 			masterWake.acquire();
 		} catch (InterruptedException e) {
+			slave1_lock.unlock();
+			slave2_lock.unlock();
 			masterLock.unlock();
 			AutoGrader.aghandleGetFinished();
 			throw new KVException(new KVMessage("Internal: performTPCOperation failed: InterruptedException"));
@@ -636,6 +686,8 @@ public class TPCMaster {
 		}
 		
 		if (returned == null || error != null) {
+			slave1_lock.unlock();
+			slave2_lock.unlock();
 			masterLock.unlock();
 			AutoGrader.aghandleGetFinished();
 			throw new KVException(error);
@@ -643,7 +695,8 @@ public class TPCMaster {
 		
 		// update cache
 		masterCache.put(key, returned);
-		
+		slave1_lock.unlock();
+		slave2_lock.unlock();
 		masterLock.unlock();
 		
 		AutoGrader.aghandleGetFinished();

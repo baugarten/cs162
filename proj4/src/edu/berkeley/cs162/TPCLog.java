@@ -150,7 +150,7 @@ public class TPCLog {
 
 
 
-			if (msgType.equals("commit")) {
+			if (msgType.equals("commit") && interruptedTpcOperation != null) {
 				KVMessage interrupted = interruptedTpcOperation;
 				String interruptedMsgType = interrupted.getMsgType();
 				interruptedTpcOperation = null;

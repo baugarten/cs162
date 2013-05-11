@@ -1,4 +1,4 @@
-package test.edu.berkeley.cs162;
+package edu.berkeley.cs162;
 
 import java.io.IOException;
 import java.io.PipedInputStream;

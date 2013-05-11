@@ -588,7 +588,6 @@ public class KVMessage implements Serializable {
 		try {
 			out = sock.getOutputStream();
 			String temp = toXML();
-			System.out.println(temp);
 			out.write(temp.getBytes("UTF-8"));
 			out.flush();
 		} 
