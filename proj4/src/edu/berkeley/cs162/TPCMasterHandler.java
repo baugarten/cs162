@@ -248,7 +248,7 @@ public class TPCMasterHandler implements NetworkHandler {
  			AutoGrader.agGetStarted(slaveID);
  			if (oversizedKey(msg)) {
 				try {
-					KVMessage ret = new KVMessage("abort", "Oversized key");
+					KVMessage ret = new KVMessage("resp", "Oversized key");
 					ret.setTpcOpId(msg.getTpcOpId());
 					ret.sendMessage(client);
 				} catch (KVException e) {
