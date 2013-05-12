@@ -153,13 +153,49 @@ public class TPCMasterTest {
 		
 		System.out.println("check put commit failure");
 		slaveIgnoreCommit(0);
+		tpcMaster.performTPCOperation(new KVMessage("putreq", "keyz", "valx"), true);
+		assertEquals("valx", slaveServers.get(0).get("keyz"));
+		assertEquals("valx", slaveServers.get(1).get("keyz"));
+
+		slaveIgnoreCommit(1);
+		tpcMaster.performTPCOperation(new KVMessage("putreq", "keyz", "valy"), true);
+		assertEquals("valy", slaveServers.get(0).get("keyz"));
+		assertEquals("valy", slaveServers.get(1).get("keyz"));
+		
+		slaveIgnoreCommit(0);
+		slaveIgnoreCommit(1);
 		tpcMaster.performTPCOperation(new KVMessage("putreq", "keyz", "valz"), true);
 		assertEquals("valz", slaveServers.get(0).get("keyz"));
 		assertEquals("valz", slaveServers.get(1).get("keyz"));
 		
+		System.out.println("check single get failure");
+		tpcMaster.flushCache();
+		slaveIgnoreCommit(0);
+		assertEquals("valz",
+				tpcMaster.handleGet(new KVMessage("getreq", "keyz", null)));
+
+		tpcMaster.flushCache();
+		slaveIgnoreCommit(1);
+		assertEquals("valz",
+				tpcMaster.handleGet(new KVMessage("getreq", "keyz", null)));
+
+		System.out.println("check multiple get failure");
+		tpcMaster.flushCache();
+		slaveIgnoreCommit(0);
+		slaveIgnoreCommit(1);
+		try {
+			tpcMaster.handleGet(new KVMessage("getreq", "keyz", null));
+			fail("put should throw exception on both failures");
+		} catch (KVException e) {
+			KVMessage m = e.getMsg();
+			assertEquals("resp", m.getMsgType());
+			assertEquals("@0:=IgnoreNext Error: SlaveServer 0 has ignored this 2PC request during the first phase\n"
+					+ "@20000000000000000:=IgnoreNext Error: SlaveServer 20000000000000000 has ignored this 2PC request during the first phase",
+					m.getMessage());
+		}
+		
 		System.out.println("check del abort failure");
 		slaveIgnore(0);
-		slaveIgnoreCommit(0);
 		try{
 			tpcMaster.performTPCOperation(new KVMessage("delreq", "keyz", null), false);
 			fail("put should throw exception");
@@ -174,6 +210,7 @@ public class TPCMasterTest {
 
 		System.out.println("check put commit failure");
 		slaveIgnoreCommit(0);
+		slaveIgnoreCommit(1);
 		tpcMaster.performTPCOperation(new KVMessage("delreq", "keyz", null), false);
 		assertEquals(null, slaveServers.get(0).get("keyz"));
 		assertEquals(null, slaveServers.get(1).get("keyz"));
@@ -194,7 +231,7 @@ public class TPCMasterTest {
 		} catch (KVException e) {
 			KVMessage err = e.getMsg();
 			assertEquals("resp", err.getMsgType());
-			assertEquals("Does not exist", err.getMessage());
+			assertEquals("@0:=Does not exist\n@20000000000000000:=Does not exist", err.getMessage());
 		}
 
 		// try invalid del

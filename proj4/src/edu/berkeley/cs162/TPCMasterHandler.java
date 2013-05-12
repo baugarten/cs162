@@ -110,6 +110,18 @@ public class TPCMasterHandler implements NetworkHandler {
 				handlePut(msg, key);
 			}
 			else if (msg.getMsgType().equals("getreq")) {
+				if (ignoreNextCommit) {
+					ignoreNextCommit = false;
+					try {
+						KVMessage ret = new KVMessage("resp", "IgnoreNext Error: SlaveServer " + slaveID + " has ignored this 2PC request during the first phase");
+						ret.setTpcOpId(msg.getTpcOpId());
+						ret.sendMessage(client);
+					} catch (KVException e) {
+						// ignore
+					}
+					return;
+				}
+				
 				handleGet(msg, key);
 			}
 			else if (msg.getMsgType().equals("delreq")) {
@@ -135,6 +147,13 @@ public class TPCMasterHandler implements NetworkHandler {
 				}
 				if (ignoreNextCommit) {
 					ignoreNextCommit = false;
+					try {
+						KVMessage ret = new KVMessage("resp", "IgnoreNext Error: SlaveServer " + slaveID + " has ignored this 2PC request during the first phase");
+						ret.setTpcOpId(msg.getTpcOpId());
+						ret.sendMessage(client);
+					} catch (KVException e) {
+						// ignore
+					}
 					return;
 				}
 				
