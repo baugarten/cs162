@@ -193,7 +193,6 @@ public class TPCMasterHandler implements NetworkHandler {
 				AutoGrader.agTPCPutFinished(slaveID, msg, key);
 				return;
 			}
-			
 			KVMessage result = validateMessage(msg);
 			if(result == null){
 				AutoGrader.agTPCPutFinished(slaveID, msg, key);
