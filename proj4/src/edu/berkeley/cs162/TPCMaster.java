@@ -186,18 +186,18 @@ public class TPCMaster {
 		}
 		
 		public synchronized KVMessage doKVOperation(KVMessage op) throws KVException {
-			//System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + "KVOperation on " + this.hostName + ":" + this.port);
+			System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + "KVOperation on " + this.hostName + ":" + this.port);
 			try {
 				Socket socket = new Socket(this.hostName, this.port);
 				socket.setSoTimeout(TIMEOUT_MILLISECONDS);
 				
-				//System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + op.getMsgType() + ": " + op.getMessage());
+				System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + op.getMsgType() + ": " + op.getMessage() + " (" + op.getKey() + " = " + op.getValue() + ")");
 				
 				op.sendMessage(socket);
 				KVMessage response = new KVMessage(socket.getInputStream());
 				socket.close();
 				
-				//System.out.println(op.getTpcOpId() + ":" + this.port + "<= " + response.getMsgType() + ": " + response.getMessage());
+				System.out.println(op.getTpcOpId() + ":" + this.port + "<= " + response.getMsgType() + ": " + response.getMessage() + " (" + op.getKey() + " = " + op.getValue() + ")");
 				
 				return response;
 			} catch (SocketTimeoutException e) {
@@ -679,6 +679,9 @@ public class TPCMaster {
 		
 		try {
 			masterWake.acquire();
+			if (!((slaveGet1.done && slaveGet1.error == null) || (slaveGet2.done && slaveGet2.error == null))) {
+				masterWake.acquire();
+			}
 		} catch (InterruptedException e) {
 			slave1_lock.unlock();
 			slave2_lock.unlock();
@@ -686,15 +689,17 @@ public class TPCMaster {
 			AutoGrader.aghandleGetFinished();
 			throw new KVException(new KVMessage("Internal: performTPCOperation failed: InterruptedException"));
 		}
-		
+
 		String returned = null;
 		KVMessage error = null;
-		if (slaveGet1.done) {
+		
+		if (slaveGet1.done && slaveGet1.error == null) {
 			returned = slaveGet1.returnVal;
-			error = slaveGet1.error;
-		} else if (slaveGet2.done) {
+		} else if (slaveGet2.done && slaveGet2.error == null) {
 			returned = slaveGet2.returnVal;
-			error = slaveGet2.error;
+		} else {
+			error = new KVMessage("resp", "@" + slave1.getSlaveID() + ":=" + slaveGet1.error.getMessage() + "\n"
+					+ "@" + slave2.getSlaveID() + ":=" + slaveGet2.error.getMessage());
 		}
 		
 		if (returned == null || error != null) {
