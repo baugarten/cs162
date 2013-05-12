@@ -186,18 +186,18 @@ public class TPCMaster {
 		}
 		
 		public synchronized KVMessage doKVOperation(KVMessage op) throws KVException {
-			System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + "KVOperation on " + this.hostName + ":" + this.port);
+			//System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + "KVOperation on " + this.hostName + ":" + this.port);
 			try {
 				Socket socket = new Socket(this.hostName, this.port);
 				socket.setSoTimeout(TIMEOUT_MILLISECONDS);
 				
-				System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + op.getMsgType() + ": " + op.getMessage() + " (" + op.getKey() + " = " + op.getValue() + ")");
+				//System.out.println(op.getTpcOpId() + ":" + this.port + "=> " + op.getMsgType() + ": " + op.getMessage() + " (" + op.getKey() + " = " + op.getValue() + ")");
 				
 				op.sendMessage(socket);
 				KVMessage response = new KVMessage(socket.getInputStream());
 				socket.close();
 				
-				System.out.println(op.getTpcOpId() + ":" + this.port + "<= " + response.getMsgType() + ": " + response.getMessage() + " (" + op.getKey() + " = " + op.getValue() + ")");
+				//System.out.println(op.getTpcOpId() + ":" + this.port + "<= " + response.getMsgType() + ": " + response.getMessage() + " (" + op.getKey() + " , " + op.getValue() + ")");
 				
 				return response;
 			} catch (SocketTimeoutException e) {

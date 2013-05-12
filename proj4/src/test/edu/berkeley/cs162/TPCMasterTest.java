@@ -178,7 +178,7 @@ public class TPCMasterTest {
 		slaveIgnoreCommit(1);
 		assertEquals("valz",
 				tpcMaster.handleGet(new KVMessage("getreq", "keyz", null)));
-
+		
 		System.out.println("check multiple get failure");
 		tpcMaster.flushCache();
 		slaveIgnoreCommit(0);
@@ -189,8 +189,8 @@ public class TPCMasterTest {
 		} catch (KVException e) {
 			KVMessage m = e.getMsg();
 			assertEquals("resp", m.getMsgType());
-			assertEquals("@0:=IgnoreNext Error: SlaveServer 0 has ignored this 2PC request during the first phase\n"
-					+ "@20000000000000000:=IgnoreNext Error: SlaveServer 20000000000000000 has ignored this 2PC request during the first phase",
+			assertEquals("@0:=Network Error: Could not receive data\n"
+					+ "@20000000000000000:=Network Error: Could not receive data",
 					m.getMessage());
 		}
 		
@@ -382,6 +382,7 @@ public class TPCMasterTest {
 			tpcMaster.handleGet(new KVMessage("getreq", "key1", null));
 			fail("get should throw exception");
 		} catch (KVException e) {}
+		
 	}
 	
 	void slaveIgnoreCommit(int slave) {

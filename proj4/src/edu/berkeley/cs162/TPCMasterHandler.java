@@ -94,38 +94,40 @@ public class TPCMasterHandler implements NetworkHandler {
 				System.err.println(m.getMsgType());
 				System.err.println(m.getMessage());
 				e.printStackTrace();
+				try {
+					e.getMsg().sendMessage(client);
+				} catch (KVException e1) {
+					// TODO Auto-generated catch block
+					//e1.printStackTrace();
+				}
+				closeConn();
 				return;
 			} catch (Exception e1) {
 				// burn in hell
 				e1.printStackTrace();
 				System.err.println("burnt in hell");
+				closeConn();
 				return;
 			} 
-			
-			//System.out.println(msg.toString());
 			
 			// Parse the message and do stuff 
 			String key = msg.getKey();
 			if (msg.getMsgType().equals("putreq")) {
 				handlePut(msg, key);
+				closeConn();
 			}
 			else if (msg.getMsgType().equals("getreq")) {
 				if (ignoreNextCommit) {
 					ignoreNextCommit = false;
-					try {
-						KVMessage ret = new KVMessage("resp", "IgnoreNext Error: SlaveServer " + slaveID + " has ignored this 2PC request during the first phase");
-						ret.setTpcOpId(msg.getTpcOpId());
-						ret.sendMessage(client);
-					} catch (KVException e) {
-						// ignore
-					}
 					return;
 				}
 				
 				handleGet(msg, key);
+				closeConn();
 			}
 			else if (msg.getMsgType().equals("delreq")) {
 				handleDel(msg, key);
+				closeConn();
 			} 
 			else if (msg.getMsgType().equals("ignoreNext")) {
 				ignoreNext = true;
@@ -133,9 +135,11 @@ public class TPCMasterHandler implements NetworkHandler {
 				try {
 					msg = new KVMessage("resp", "Success");
 					msg.sendMessage(client);
+					
 				} catch (KVException e) {
 					// ignore
 				}
+				closeConn();
 			}
 			else if (msg.getMsgType().equals("commit") || msg.getMsgType().equals("abort")) {
 				// Check in TPCLog for the case when SlaveServer is restarted
@@ -147,13 +151,6 @@ public class TPCMasterHandler implements NetworkHandler {
 				}
 				if (ignoreNextCommit) {
 					ignoreNextCommit = false;
-					try {
-						KVMessage ret = new KVMessage("resp", "IgnoreNext Error: SlaveServer " + slaveID + " has ignored this 2PC request during the first phase");
-						ret.setTpcOpId(msg.getTpcOpId());
-						ret.sendMessage(client);
-					} catch (KVException e) {
-						// ignore
-					}
 					return;
 				}
 				
@@ -162,19 +159,20 @@ public class TPCMasterHandler implements NetworkHandler {
 				}
 				handleMasterResponse(msg, originalMessage, aborted);
 				originalMessage = null;
-				
+				closeConn();
 				// Reset state
 				// Implement me
 			} else {
 				try {
 					new KVMessage("resp", "Unknown Error: invalid message type").sendMessage(client);
+					closeConn();
 				} catch (KVException e) {
 					e.printStackTrace();
 				}
 			}
 			
 			// Finally, close the connection
-			closeConn();
+			//closeConn();
 		}
 
 		private void handlePut(KVMessage msg, String key) {
@@ -205,7 +203,6 @@ public class TPCMasterHandler implements NetworkHandler {
 				KVMessage resp = new KVMessage("ready");
 				resp.setTpcOpId(msg.getTpcOpId());
 				resp.sendMessage(client);
-				//System.out.println(resp.toString());
 			} catch (KVException e) {
 				// ignore
 			}
@@ -308,7 +305,7 @@ public class TPCMasterHandler implements NetworkHandler {
  			if (oversizedKey(msg)) {
 				try {
 					aborted = true;
-					KVMessage resp = new KVMessage("abort", "Oversized value");
+					KVMessage resp = new KVMessage("abort", "Oversized key");
 					resp.setTpcOpId(msg.getTpcOpId());
 					resp.sendMessage(client);
 				} catch (KVException e) {
@@ -370,7 +367,6 @@ public class TPCMasterHandler implements NetworkHandler {
 					KVMessage resp = new KVMessage("ack");
 					resp.setTpcOpId(masterResp.getTpcOpId());
 					resp.sendMessage(client);
-					//System.out.println(resp.toString());
 				} catch (KVException e) {
 					// ignore
 				}
@@ -384,7 +380,6 @@ public class TPCMasterHandler implements NetworkHandler {
 						KVMessage resp = new KVMessage("ack");
 						resp.setTpcOpId(masterResp.getTpcOpId());
 						resp.sendMessage(client);
-						//System.out.println(resp.toString());
 					} catch (KVException e) {
 						// return failure
 					}
@@ -394,7 +389,6 @@ public class TPCMasterHandler implements NetworkHandler {
 						KVMessage resp = new KVMessage("ack");
 						resp.setTpcOpId(masterResp.getTpcOpId());
 						resp.sendMessage(client);
-						//System.out.println(resp.toString());
 					} catch (KVException e) {
 						// ignore
 					}

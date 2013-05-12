@@ -367,11 +367,10 @@ public class KVMessage implements Serializable {
    					throw new KVException(new KVMessage("resp","Message format incorrect"));
    				}
    			}	
+   		} catch (IOException e){
+   			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
    		} catch (SAXException e){
    			throw new KVException(new KVMessage("resp", "XML Error: Received unparseable message"));
-   		} catch (IOException e){
-   			e.printStackTrace();
-   			throw new KVException(new KVMessage("resp", "Network Error: Could not receive data"));
    		} catch (ParserConfigurationException e) {
    			throw new KVException(new KVMessage("resp", "Unknown Error: Something is wrong"));
 		} finally {
@@ -478,9 +477,15 @@ public class KVMessage implements Serializable {
 					throw new KVException(
 							new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
 				}
+				
 				if(key.length() == 0){
 					throw new KVException(new KVMessage("resp", "Undersized key"));
 				}
+				
+				if(key.length() > 256){
+					throw new KVException(new KVMessage("resp","Oversized key"));
+				}
+				
 				keyEle = doc.createElement("Key");
 				keyEle.appendChild(doc.createTextNode(key));
 				rootEle.appendChild(keyEle);
@@ -489,10 +494,6 @@ public class KVMessage implements Serializable {
 					if(value == null){
 						throw new KVException(
 								new KVMessage("resp", "Unknown Error: Not enough data available to generate a valid XML message"));
-					}
-					
-					if(key.length() > 256){
-						throw new KVException(new KVMessage("resp","Oversized key"));
 					}
 
 					if(value.length() > 256000){
