@@ -1,0 +1,1 @@
+So two of our tests (TPCMasterTest and MultupleClientsTest) depend on network sockets. Attempting to batch run the entire thing as a JUnit test will fail, but the tests will pass individually.
